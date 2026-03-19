@@ -127,6 +127,22 @@ class PoseSequence {
     );
   }
 
+  Map<String, dynamic> toJson() => {
+        'fps': fps,
+        'duration_ms': duration.inMilliseconds,
+        'label': label,
+        'frames': frames.map((f) => f.toJson()).toList(),
+      };
+
+  factory PoseSequence.fromJson(Map<String, dynamic> json) => PoseSequence(
+        fps: (json['fps'] as num).toDouble(),
+        duration: Duration(milliseconds: json['duration_ms'] as int),
+        label: json['label'] as String?,
+        frames: (json['frames'] as List)
+            .map((f) => PoseFrame.fromJson(f as Map<String, dynamic>))
+            .toList(),
+      );
+
   @override
   String toString() =>
       'PoseSequence(frames: ${frames.length}, fps: $fps, '

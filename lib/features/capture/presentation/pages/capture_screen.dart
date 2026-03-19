@@ -7,11 +7,14 @@ import 'package:dance_evaluation/core/services/service_locator.dart';
 import 'package:dance_evaluation/features/capture/domain/camera_source.dart';
 import 'package:dance_evaluation/features/capture/domain/pose_detector.dart';
 import 'package:dance_evaluation/features/capture/presentation/capture_controller.dart';
+import 'package:dance_evaluation/features/capture/presentation/widgets/multi_skeleton_painter.dart';
 import 'package:dance_evaluation/features/capture/presentation/widgets/skeleton_painter.dart';
 
 /// Full-screen camera capture with real-time skeleton overlay.
 class CaptureScreen extends StatefulWidget {
-  const CaptureScreen({super.key});
+  const CaptureScreen({super.key, this.referenceKey});
+
+  final String? referenceKey;
 
   @override
   State<CaptureScreen> createState() => _CaptureScreenState();
@@ -91,7 +94,10 @@ class _CaptureScreenState extends State<CaptureScreen>
     if (ctrl != null && ctrl.state == CaptureState.done) {
       Future.microtask(() {
         if (mounted) {
-          context.go('/evaluation/latest');
+          final refParam = widget.referenceKey != null
+              ? '?ref=${widget.referenceKey}'
+              : '';
+          context.go('/evaluation/latest$refParam');
         }
       });
     }
@@ -115,9 +121,9 @@ class _CaptureScreenState extends State<CaptureScreen>
     final detector = _poseDetector;
     if (ctrl == null || detector == null) return;
 
-    final frame = await detector.detectPose(input);
-    if (frame != null) {
-      ctrl.onPoseDetected(frame);
+    final frames = await detector.detectMultiPose(input);
+    if (frames.isNotEmpty) {
+      ctrl.onMultiPoseDetected(frames);
     }
   }
 
@@ -161,7 +167,16 @@ class _CaptureScreenState extends State<CaptureScreen>
           camera.buildPreview(),
 
           // Skeleton overlay.
-          if (capture.currentFrame != null)
+          if (capture.currentTrackedPersons.isNotEmpty)
+            CustomPaint(
+              painter: MultiSkeletonPainter(
+                trackedPersons: capture.currentTrackedPersons,
+                imageSize: camera.previewSize,
+                rotationDegrees: 0,
+                isFrontCamera: camera.isFrontCamera,
+              ),
+            )
+          else if (capture.currentFrame != null)
             CustomPaint(
               painter: SkeletonPainter(
                 currentFrame: capture.currentFrame,

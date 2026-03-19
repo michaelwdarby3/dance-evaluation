@@ -17,6 +17,9 @@ external JSFunction? get _isReadyFn;
 @JS('poseBridge.detectPose')
 external JSPromise<JSAny?> _jsDetectPose(web.HTMLVideoElement video);
 
+@JS('poseBridge.detectMultiPose')
+external JSPromise<JSAny?> _jsDetectMultiPose(web.HTMLVideoElement video);
+
 class WebPoseDetector implements PoseDetector {
   bool _disposed = false;
 
@@ -57,6 +60,40 @@ class WebPoseDetector implements PoseDetector {
     }
 
     return PoseFrame(landmarks: landmarks, timestamp: Duration.zero);
+  }
+
+  @override
+  Future<List<PoseFrame>> detectMultiPose(PoseInput input) async {
+    if (_disposed) return [];
+
+    await _waitForBridge();
+
+    final video = input.platformData as web.HTMLVideoElement;
+    final resultJs = await _jsDetectMultiPose(video).toDart;
+    if (resultJs == null) return [];
+
+    final personsJs = resultJs as JSArray;
+    final persons = <PoseFrame>[];
+
+    for (var p = 0; p < personsJs.length; p++) {
+      final landmarksJs = personsJs[p] as JSArray;
+      if (landmarksJs.length < 33) continue;
+
+      final landmarks = <Landmark>[];
+      for (var i = 0; i < 33; i++) {
+        final lm = landmarksJs[i] as _JsLandmark;
+        landmarks.add(Landmark(
+          x: lm.x.toDartDouble,
+          y: lm.y.toDartDouble,
+          z: lm.z.toDartDouble,
+          visibility: lm.visibility.toDartDouble,
+        ));
+      }
+
+      persons.add(PoseFrame(landmarks: landmarks, timestamp: Duration.zero));
+    }
+
+    return persons;
   }
 
   @override

@@ -5,7 +5,9 @@ import 'package:dance_evaluation/core/services/service_locator.dart';
 import 'package:dance_evaluation/features/upload/presentation/upload_controller.dart';
 
 class UploadProcessingScreen extends StatefulWidget {
-  const UploadProcessingScreen({super.key});
+  const UploadProcessingScreen({super.key, this.referenceKey});
+
+  final String? referenceKey;
 
   @override
   State<UploadProcessingScreen> createState() =>
@@ -34,7 +36,12 @@ class _UploadProcessingScreenState extends State<UploadProcessingScreen> {
 
     if (_controller.state == UploadState.done) {
       Future.microtask(() {
-        if (mounted) context.go('/evaluation/latest');
+        if (mounted) {
+          final refParam = widget.referenceKey != null
+              ? '?ref=${widget.referenceKey}'
+              : '';
+          context.go('/evaluation/latest$refParam');
+        }
       });
     }
 

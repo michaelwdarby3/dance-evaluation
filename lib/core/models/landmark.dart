@@ -33,6 +33,20 @@ class Landmark {
     );
   }
 
+  Map<String, dynamic> toJson() => {
+        'x': x,
+        'y': y,
+        'z': z,
+        'v': visibility,
+      };
+
+  factory Landmark.fromJson(Map<String, dynamic> json) => Landmark(
+        x: (json['x'] as num).toDouble(),
+        y: (json['y'] as num).toDouble(),
+        z: (json['z'] as num).toDouble(),
+        visibility: (json['v'] as num?)?.toDouble() ?? 0.0,
+      );
+
   @override
   String toString() =>
       'Landmark(x: ${x.toStringAsFixed(3)}, y: ${y.toStringAsFixed(3)}, '

@@ -3,6 +3,8 @@ import 'dart:math' as math;
 import 'package:dance_evaluation/core/constants/pose_constants.dart';
 import 'package:dance_evaluation/core/constants/style_constants.dart';
 import 'package:dance_evaluation/core/models/evaluation_result.dart';
+import 'package:dance_evaluation/core/models/multi_evaluation_result.dart';
+import 'package:dance_evaluation/core/models/multi_pose_sequence.dart';
 import 'package:dance_evaluation/core/models/pose_frame.dart';
 import 'package:dance_evaluation/core/models/pose_sequence.dart';
 import 'package:dance_evaluation/core/models/reference_choreography.dart';
@@ -78,6 +80,102 @@ class EvaluationService {
       createdAt: DateTime.now(),
       style: reference.style,
     );
+  }
+
+  /// Evaluate a multi-person performance against a multi-person reference.
+  ///
+  /// Matches user persons to reference persons by first-frame hip centroid
+  /// proximity, runs [evaluate] per pair, and aggregates scores.
+  Future<MultiPersonEvaluationResult> evaluateMulti(
+    MultiPoseSequence userSequence,
+    ReferenceChoreography reference,
+  ) async {
+    final refPersons = reference.personPoses;
+    final userPersons = userSequence.personSequences;
+
+    if (userPersons.length == 1 && refPersons.length == 1) {
+      final result = await evaluate(userPersons.first, reference);
+      return MultiPersonEvaluationResult(
+        personResults: [result],
+        overallScore: result.overallScore,
+      );
+    }
+
+    // Match persons by first-frame centroid proximity.
+    final matching = _matchPersons(userPersons, refPersons);
+
+    final results = <EvaluationResult>[];
+    for (final (userIdx, refIdx) in matching) {
+      // Create a temporary single-person reference for each pair.
+      final singleRef = ReferenceChoreography(
+        id: reference.id,
+        name: reference.name,
+        style: reference.style,
+        poses: refPersons[refIdx],
+        bpm: reference.bpm,
+        description: reference.description,
+        difficulty: reference.difficulty,
+        audioAsset: reference.audioAsset,
+      );
+      final result = await evaluate(userPersons[userIdx], singleRef);
+      results.add(result);
+    }
+
+    final overallScore = results.isEmpty
+        ? 0.0
+        : results.map((r) => r.overallScore).reduce((a, b) => a + b) /
+            results.length;
+
+    return MultiPersonEvaluationResult(
+      personResults: results,
+      overallScore: overallScore,
+    );
+  }
+
+  /// Match user persons to reference persons by first-frame hip centroid.
+  List<(int userIdx, int refIdx)> _matchPersons(
+    List<PoseSequence> userPersons,
+    List<PoseSequence> refPersons,
+  ) {
+    if (userPersons.isEmpty || refPersons.isEmpty) return [];
+
+    final userCentroids = userPersons.map(_firstFrameCentroid).toList();
+    final refCentroids = refPersons.map(_firstFrameCentroid).toList();
+
+    final matched = <(int, int)>[];
+    final usedRef = <int>{};
+
+    // Greedy matching by nearest centroid.
+    for (var ui = 0; ui < userCentroids.length; ui++) {
+      var bestRefIdx = -1;
+      var bestDist = double.infinity;
+
+      for (var ri = 0; ri < refCentroids.length; ri++) {
+        if (usedRef.contains(ri)) continue;
+        final dx = userCentroids[ui].$1 - refCentroids[ri].$1;
+        final dy = userCentroids[ui].$2 - refCentroids[ri].$2;
+        final dist = math.sqrt(dx * dx + dy * dy);
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestRefIdx = ri;
+        }
+      }
+
+      if (bestRefIdx >= 0) {
+        matched.add((ui, bestRefIdx));
+        usedRef.add(bestRefIdx);
+      }
+    }
+
+    return matched;
+  }
+
+  (double, double) _firstFrameCentroid(PoseSequence seq) {
+    if (seq.frames.isEmpty) return (0.5, 0.5);
+    final frame = seq.frames.first;
+    final lh = frame.landmarks[PoseConstants.leftHip];
+    final rh = frame.landmarks[PoseConstants.rightHip];
+    return ((lh.x + rh.x) / 2, (lh.y + rh.y) / 2);
   }
 
   // ---------------------------------------------------------------------------

@@ -52,14 +52,14 @@ class UploadController extends ChangeNotifier {
 
       _capture.startExternalRecording();
 
-      await _extractor.extractPoses(
+      await _extractor.extractMultiPoses(
         videoUrl: videoUrl,
         onProgress: (p) {
           _progress = p;
           notifyListeners();
         },
-        onFrame: (frame) {
-          _capture.addExternalFrame(frame);
+        onFrames: (frames) {
+          _capture.addExternalMultiFrames(frames);
           _frameCount++;
         },
       );

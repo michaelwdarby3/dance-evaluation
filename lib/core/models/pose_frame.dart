@@ -48,6 +48,18 @@ class PoseFrame {
     return math.acos(cosAngle) * (180.0 / math.pi);
   }
 
+  Map<String, dynamic> toJson() => {
+        'ts': timestamp.inMilliseconds,
+        'lm': landmarks.map((l) => l.toJson()).toList(),
+      };
+
+  factory PoseFrame.fromJson(Map<String, dynamic> json) => PoseFrame(
+        timestamp: Duration(milliseconds: json['ts'] as int),
+        landmarks: (json['lm'] as List)
+            .map((l) => Landmark.fromJson(l as Map<String, dynamic>))
+            .toList(),
+      );
+
   @override
   String toString() => 'PoseFrame(timestamp: $timestamp)';
 }

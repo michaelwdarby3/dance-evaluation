@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 
 import 'package:dance_evaluation/core/models/pose_frame.dart';
 import 'package:dance_evaluation/core/models/pose_sequence.dart';
+import 'package:dance_evaluation/core/models/multi_pose_sequence.dart';
+import 'package:dance_evaluation/core/utils/person_tracker.dart';
 import 'package:dance_evaluation/features/capture/domain/pose_detector.dart';
 
 /// The current phase of the capture workflow.
@@ -28,6 +30,14 @@ class CaptureController extends ChangeNotifier {
 
   final List<PoseFrame> _recordedFrames = [];
   List<PoseFrame> get recordedFrames => List.unmodifiable(_recordedFrames);
+
+  // Multi-person tracking state.
+  final PersonTracker _personTracker = PersonTracker();
+  Map<int, PoseFrame> _currentTrackedPersons = {};
+  Map<int, PoseFrame> get currentTrackedPersons => Map.unmodifiable(_currentTrackedPersons);
+  final Map<int, List<PoseFrame>> _recordedPersonFrames = {};
+  bool _isMultiPerson = false;
+  bool get isMultiPerson => _isMultiPerson;
 
   int _countdownSeconds = 3;
   int get countdownSeconds => _countdownSeconds;
@@ -71,6 +81,9 @@ class CaptureController extends ChangeNotifier {
 
   void _startRecording() {
     _recordedFrames.clear();
+    _recordedPersonFrames.clear();
+    _personTracker.reset();
+    _isMultiPerson = false;
     _recordingDuration = Duration.zero;
     _recordingElapsed = Duration.zero;
     _state = CaptureState.recording;
@@ -95,6 +108,9 @@ class CaptureController extends ChangeNotifier {
   /// Begins accepting externally-provided frames (skips countdown).
   void startExternalRecording() {
     _recordedFrames.clear();
+    _recordedPersonFrames.clear();
+    _personTracker.reset();
+    _isMultiPerson = false;
     _recordingDuration = Duration.zero;
     _recordingElapsed = Duration.zero;
     _state = CaptureState.recording;
@@ -128,6 +144,98 @@ class CaptureController extends ChangeNotifier {
 
     _currentFrame = frame;
     notifyListeners();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Multi-person pose handling
+  // ---------------------------------------------------------------------------
+
+  /// Called for every multi-person detection. Tracks persons and records.
+  void onMultiPoseDetected(List<PoseFrame> frames) {
+    final tracked = _personTracker.track(frames);
+    _currentTrackedPersons = tracked;
+
+    if (tracked.length > 1) _isMultiPerson = true;
+
+    if (_state == CaptureState.recording) {
+      for (final entry in tracked.entries) {
+        final timestamped = PoseFrame(
+          landmarks: entry.value.landmarks,
+          timestamp: _recordingElapsed,
+        );
+        _recordedPersonFrames
+            .putIfAbsent(entry.key, () => [])
+            .add(timestamped);
+      }
+      // Also record first person in legacy list for backwards compat.
+      if (tracked.isNotEmpty) {
+        final firstFrame = tracked.values.first;
+        final timestamped = PoseFrame(
+          landmarks: firstFrame.landmarks,
+          timestamp: _recordingElapsed,
+        );
+        _recordedFrames.add(timestamped);
+      }
+    }
+
+    _currentFrame = tracked.isNotEmpty ? tracked.values.first : null;
+    notifyListeners();
+  }
+
+  /// Adds externally-provided multi-person frames (from video upload).
+  void addExternalMultiFrames(List<PoseFrame> frames) {
+    if (_state != CaptureState.recording) return;
+
+    final tracked = _personTracker.track(frames);
+    _currentTrackedPersons = tracked;
+
+    if (tracked.length > 1) _isMultiPerson = true;
+
+    for (final entry in tracked.entries) {
+      _recordedPersonFrames
+          .putIfAbsent(entry.key, () => [])
+          .add(entry.value);
+    }
+
+    // Also record first person in legacy list.
+    if (frames.isNotEmpty) {
+      _recordedFrames.add(frames.first);
+      _recordingElapsed = frames.first.timestamp;
+      _recordingDuration = frames.first.timestamp;
+      _currentFrame = frames.first;
+    }
+    notifyListeners();
+  }
+
+  /// Builds a [MultiPoseSequence] from the recorded multi-person frames.
+  MultiPoseSequence getRecordedMultiSequence() {
+    if (_recordedPersonFrames.isEmpty) {
+      return MultiPoseSequence.fromSingle(getRecordedSequence());
+    }
+
+    final durationMs = _recordedFrames.isNotEmpty
+        ? _recordedFrames.last.timestamp.inMilliseconds
+        : 0;
+
+    final personSequences = _recordedPersonFrames.entries.map((entry) {
+      final frames = entry.value;
+      final fps = durationMs > 0 ? (frames.length * 1000.0) / durationMs : 0.0;
+      return PoseSequence(
+        frames: List.unmodifiable(frames),
+        fps: fps,
+        duration: Duration(milliseconds: durationMs),
+        label: 'person_${entry.key}',
+      );
+    }).toList();
+
+    final fps =
+        durationMs > 0 ? (_recordedFrames.length * 1000.0) / durationMs : 0.0;
+
+    return MultiPoseSequence(
+      personSequences: personSequences,
+      fps: fps,
+      duration: Duration(milliseconds: durationMs),
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -165,6 +273,10 @@ class CaptureController extends ChangeNotifier {
     _countdownTimer?.cancel();
     _recordingTimer?.cancel();
     _recordedFrames.clear();
+    _recordedPersonFrames.clear();
+    _personTracker.reset();
+    _currentTrackedPersons = {};
+    _isMultiPerson = false;
     _currentFrame = null;
     _recordingDuration = Duration.zero;
     _recordingElapsed = Duration.zero;

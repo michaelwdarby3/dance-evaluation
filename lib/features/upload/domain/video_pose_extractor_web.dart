@@ -14,6 +14,10 @@ VideoPoseExtractor createVideoPoseExtractor() => WebVideoPoseExtractor();
 external JSPromise<JSAny?> _jsDetectPoseAtTime(
     web.HTMLVideoElement video, JSNumber timestampMs);
 
+@JS('poseBridge.detectMultiPoseAtTime')
+external JSPromise<JSAny?> _jsDetectMultiPoseAtTime(
+    web.HTMLVideoElement video, JSNumber timestampMs);
+
 @JS('poseBridge.isReady')
 external JSFunction? get _isReadyFn;
 
@@ -122,6 +126,82 @@ class WebVideoPoseExtractor implements VideoPoseExtractor {
     }.toJS;
     video.addEventListener(event, listener);
     return completer.future;
+  }
+
+  @override
+  Future<Duration> extractMultiPoses({
+    required String videoUrl,
+    required void Function(double progress) onProgress,
+    required void Function(List<PoseFrame> frames) onFrames,
+  }) async {
+    await _waitForBridge();
+
+    final video =
+        web.document.createElement('video') as web.HTMLVideoElement;
+    video.src = videoUrl;
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = 'auto';
+
+    await _waitForEvent(video, 'loadeddata');
+
+    final totalSeconds = video.duration;
+    if (totalSeconds.isNaN || totalSeconds.isInfinite || totalSeconds <= 0) {
+      throw Exception('Could not determine video duration');
+    }
+
+    final totalDuration = Duration(
+      milliseconds: (totalSeconds * 1000).round(),
+    );
+    final stepSeconds = 1.0 / _extractionFps;
+
+    var currentTime = 0.0;
+
+    while (currentTime < totalSeconds) {
+      video.currentTime = currentTime;
+      await _waitForEvent(video, 'seeked');
+
+      final timestampMs = (currentTime * 1000).roundToDouble();
+      final resultJs =
+          await _jsDetectMultiPoseAtTime(video, timestampMs.toJS).toDart;
+
+      if (resultJs != null) {
+        final personsJs = resultJs as JSArray;
+        final persons = <PoseFrame>[];
+
+        for (var p = 0; p < personsJs.length; p++) {
+          final landmarksJs = personsJs[p] as JSArray;
+          if (landmarksJs.length < 33) continue;
+
+          final landmarks = <Landmark>[];
+          for (var i = 0; i < 33; i++) {
+            final lm = landmarksJs[i] as _JsLandmark;
+            landmarks.add(Landmark(
+              x: lm.x.toDartDouble,
+              y: lm.y.toDartDouble,
+              z: lm.z.toDartDouble,
+              visibility: lm.visibility.toDartDouble,
+            ));
+          }
+          persons.add(PoseFrame(
+            landmarks: landmarks,
+            timestamp: Duration(milliseconds: timestampMs.round()),
+          ));
+        }
+
+        if (persons.isNotEmpty) {
+          onFrames(persons);
+        }
+      }
+
+      currentTime += stepSeconds;
+      onProgress((currentTime / totalSeconds).clamp(0.0, 1.0));
+    }
+
+    video.src = '';
+    web.URL.revokeObjectURL(videoUrl);
+
+    return totalDuration;
   }
 
   @override

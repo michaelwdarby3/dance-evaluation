@@ -30,7 +30,7 @@ const poseBridge = {
           delegate: "GPU",
         },
         runningMode: "VIDEO",
-        numPoses: 1,
+        numPoses: 5,
       });
 
       this._ready = true;
@@ -108,6 +108,70 @@ const poseBridge = {
       }));
     } catch (e) {
       console.error("Pose detection (at time) error:", e);
+      return null;
+    }
+  },
+
+  /**
+   * Detect poses for ALL persons in the frame.
+   * Returns an array of arrays: [[33 lm], [33 lm], ...], or null.
+   */
+  detectMultiPose(videoElement) {
+    if (!this._ready || !this._landmarker) return null;
+    if (videoElement.readyState < 2) return null;
+
+    try {
+      const result = this._landmarker.detectForVideo(
+        videoElement,
+        performance.now()
+      );
+
+      if (!result || !result.landmarks || result.landmarks.length === 0) {
+        return null;
+      }
+
+      return result.landmarks.map((personLandmarks) =>
+        personLandmarks.map((lm) => ({
+          x: lm.x,
+          y: lm.y,
+          z: lm.z,
+          visibility: lm.visibility ?? 0.0,
+        }))
+      );
+    } catch (e) {
+      console.error("Multi-pose detection error:", e);
+      return null;
+    }
+  },
+
+  /**
+   * Detect poses for ALL persons at a specific timestamp.
+   * Returns an array of arrays: [[33 lm], [33 lm], ...], or null.
+   */
+  detectMultiPoseAtTime(videoElement, timestampMs) {
+    if (!this._ready || !this._landmarker) return null;
+    if (videoElement.readyState < 2) return null;
+
+    try {
+      const result = this._landmarker.detectForVideo(
+        videoElement,
+        timestampMs
+      );
+
+      if (!result || !result.landmarks || result.landmarks.length === 0) {
+        return null;
+      }
+
+      return result.landmarks.map((personLandmarks) =>
+        personLandmarks.map((lm) => ({
+          x: lm.x,
+          y: lm.y,
+          z: lm.z,
+          visibility: lm.visibility ?? 0.0,
+        }))
+      );
+    } catch (e) {
+      console.error("Multi-pose detection (at time) error:", e);
       return null;
     }
   },

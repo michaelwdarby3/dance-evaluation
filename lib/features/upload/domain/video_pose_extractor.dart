@@ -11,5 +11,19 @@ abstract class VideoPoseExtractor {
     required void Function(PoseFrame frame) onFrame,
   });
 
+  /// Multi-person variant. Calls [onFrames] with all detected persons per
+  /// video frame. Default implementation wraps [extractPoses].
+  Future<Duration> extractMultiPoses({
+    required String videoUrl,
+    required void Function(double progress) onProgress,
+    required void Function(List<PoseFrame> frames) onFrames,
+  }) {
+    return extractPoses(
+      videoUrl: videoUrl,
+      onProgress: onProgress,
+      onFrame: (frame) => onFrames([frame]),
+    );
+  }
+
   void dispose();
 }

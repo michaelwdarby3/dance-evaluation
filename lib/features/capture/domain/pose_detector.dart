@@ -5,6 +5,13 @@ abstract class PoseDetector {
   /// Detect a pose from platform-specific input.
   Future<PoseFrame?> detectPose(PoseInput input);
 
+  /// Detect poses for all visible persons.
+  /// Default implementation wraps [detectPose] for single-person fallback.
+  Future<List<PoseFrame>> detectMultiPose(PoseInput input) async {
+    final frame = await detectPose(input);
+    return frame != null ? [frame] : [];
+  }
+
   /// Release resources.
   void dispose();
 }

@@ -13,12 +13,15 @@ void main() {
           builder: (context, state) => const HomeScreen(),
         ),
         GoRoute(
-          path: '/capture',
-          builder: (context, state) => const Scaffold(body: Text('Capture')),
+          path: '/references/:mode',
+          builder: (context, state) => Scaffold(
+            body: Text('References ${state.pathParameters['mode']}'),
+          ),
         ),
         GoRoute(
-          path: '/upload',
-          builder: (context, state) => const Scaffold(body: Text('Upload')),
+          path: '/create-reference',
+          builder: (context, state) =>
+              const Scaffold(body: Text('Create Reference')),
         ),
       ],
     );
@@ -53,22 +56,34 @@ void main() {
       expect(find.byType(OutlinedButton), findsOneWidget);
     });
 
-    testWidgets('Start Dancing button navigates to /capture', (tester) async {
+    testWidgets('Start Dancing navigates to reference selection',
+        (tester) async {
       await tester.pumpWidget(buildSubject());
 
       await tester.tap(find.byType(ElevatedButton));
       await tester.pumpAndSettle();
 
-      expect(find.text('Capture'), findsOneWidget);
+      expect(find.text('References capture'), findsOneWidget);
     });
 
-    testWidgets('Upload Video button navigates to /upload', (tester) async {
+    testWidgets('Upload Video navigates to reference selection',
+        (tester) async {
       await tester.pumpWidget(buildSubject());
 
       await tester.tap(find.byType(OutlinedButton));
       await tester.pumpAndSettle();
 
-      expect(find.text('Upload'), findsOneWidget);
+      expect(find.text('References upload'), findsOneWidget);
+    });
+
+    testWidgets('Manage References navigates to references/manage',
+        (tester) async {
+      await tester.pumpWidget(buildSubject());
+
+      await tester.tap(find.text('Manage References'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('References manage'), findsOneWidget);
     });
   });
 }
