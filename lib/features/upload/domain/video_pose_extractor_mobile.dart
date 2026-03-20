@@ -7,7 +7,7 @@ import 'video_pose_extractor.dart';
 VideoPoseExtractor createVideoPoseExtractor() => MobileVideoPoseExtractor();
 
 /// Extracts poses from a video file on mobile platforms.
-class MobileVideoPoseExtractor implements VideoPoseExtractor {
+class MobileVideoPoseExtractor extends VideoPoseExtractor {
   @override
   Future<Duration> extractPoses({
     required String videoUrl,
