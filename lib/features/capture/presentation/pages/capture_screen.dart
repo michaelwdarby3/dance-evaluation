@@ -3,11 +3,14 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:dance_evaluation/core/models/reference_choreography.dart';
 import 'package:dance_evaluation/core/services/service_locator.dart';
+import 'package:dance_evaluation/data/reference_repository.dart';
 import 'package:dance_evaluation/features/capture/domain/camera_source.dart';
 import 'package:dance_evaluation/features/capture/domain/pose_detector.dart';
 import 'package:dance_evaluation/features/capture/presentation/capture_controller.dart';
 import 'package:dance_evaluation/features/capture/presentation/widgets/multi_skeleton_painter.dart';
+import 'package:dance_evaluation/features/capture/presentation/widgets/reference_ghost_painter.dart';
 import 'package:dance_evaluation/features/capture/presentation/widgets/skeleton_painter.dart';
 
 /// Full-screen camera capture with real-time skeleton overlay.
@@ -32,11 +35,26 @@ class _CaptureScreenState extends State<CaptureScreen>
 
   String? _errorMessage;
 
+  ReferenceChoreography? _reference;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _initCamera();
+    _loadReference();
+  }
+
+  Future<void> _loadReference() async {
+    final key = widget.referenceKey;
+    if (key == null) return;
+    try {
+      final repo = ServiceLocator.instance.get<ReferenceRepository>();
+      final ref = await repo.load(key);
+      if (mounted) setState(() => _reference = ref);
+    } catch (_) {
+      // Reference load failure shouldn't block capture.
+    }
   }
 
   @override
@@ -166,6 +184,17 @@ class _CaptureScreenState extends State<CaptureScreen>
           // Camera preview.
           camera.buildPreview(),
 
+          // Reference ghost overlay (shown during recording).
+          if (_reference != null &&
+              capture.state == CaptureState.recording)
+            CustomPaint(
+              painter: ReferenceGhostPainter(
+                referenceSequence: _reference!.poses,
+                elapsed: capture.recordingDuration,
+                canvasSize: MediaQuery.of(context).size,
+              ),
+            ),
+
           // Skeleton overlay.
           if (capture.currentTrackedPersons.isNotEmpty)
             CustomPaint(
@@ -216,6 +245,23 @@ class _CaptureScreenState extends State<CaptureScreen>
                     },
                   ),
                   const Spacer(),
+                  if (_reference != null && capture.state == CaptureState.idle)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFBB86FC).withValues(alpha: 0.7),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        _reference!.name,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
                   if (capture.state == CaptureState.recording)
                     _buildTimerDisplay(capture),
                 ],
