@@ -1,5 +1,8 @@
 /// Platform-agnostic storage for user-created references.
 abstract class ReferenceStorage {
+  /// Optional async initialization (e.g. resolving file paths on mobile).
+  Future<void> initialize() async {}
+
   /// Saves a reference JSON string under the given key.
   void save(String key, String json);
 

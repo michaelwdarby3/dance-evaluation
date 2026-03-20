@@ -27,6 +27,7 @@ Future<void> bootstrap() async {
   final cameraSource = createCameraSource();
   final evaluation = EvaluationService();
   final storage = createReferenceStorage();
+  await storage.initialize();
   final referenceRepo = ReferenceRepository(storage: storage);
   final capture = CaptureController(poseDetector: poseDetector);
 
