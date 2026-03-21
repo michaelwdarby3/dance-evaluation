@@ -11,7 +11,9 @@ class HomeScreen extends StatelessWidget {
     return Scaffold(
       body: SafeArea(
         child: Center(
-          child: Column(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(vertical: 48),
+            child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text(
@@ -73,6 +75,7 @@ class HomeScreen extends StatelessWidget {
                 onPressed: () => context.go('/references/manage'),
               ),
             ],
+          ),
           ),
         ),
       ),
