@@ -18,6 +18,8 @@ class WebCameraSource implements CameraSource {
   web.HTMLVideoElement? _video;
   Timer? _frameTimer;
   bool _initialized = false;
+  web.MediaRecorder? _mediaRecorder;
+  final List<web.Blob> _recordedChunks = [];
 
   @override
   Future<void> initialize() async {
@@ -95,6 +97,66 @@ class WebCameraSource implements CameraSource {
 
   @override
   bool get isFrontCamera => true; // Web defaults to user-facing camera.
+
+  @override
+  Future<void> startVideoRecording() async {
+    final video = _video;
+    if (video == null) return;
+
+    final stream = video.srcObject as web.MediaStream?;
+    if (stream == null) return;
+
+    try {
+      _recordedChunks.clear();
+      _mediaRecorder = web.MediaRecorder(
+        stream,
+        web.MediaRecorderOptions(mimeType: 'video/webm'),
+      );
+      _mediaRecorder!.addEventListener(
+        'dataavailable',
+        (web.Event event) {
+          final blobEvent = event as web.BlobEvent;
+          if (blobEvent.data.size > 0) {
+            _recordedChunks.add(blobEvent.data);
+          }
+        }.toJS,
+      );
+      _mediaRecorder!.start(100); // Collect data every 100ms.
+    } catch (_) {
+      _mediaRecorder = null;
+    }
+  }
+
+  @override
+  Future<String?> stopVideoRecording() async {
+    final recorder = _mediaRecorder;
+    if (recorder == null) return null;
+
+    final completer = Completer<String?>();
+
+    recorder.addEventListener(
+      'stop',
+      (web.Event _) {
+        if (_recordedChunks.isEmpty) {
+          completer.complete(null);
+          return;
+        }
+
+        final blob = web.Blob(
+          _recordedChunks.toJS,
+          web.BlobPropertyBag(type: 'video/webm'),
+        );
+        final url = web.URL.createObjectURL(blob);
+        _recordedChunks.clear();
+        completer.complete(url);
+      }.toJS,
+    );
+
+    recorder.stop();
+    _mediaRecorder = null;
+
+    return completer.future;
+  }
 
   @override
   void dispose() {

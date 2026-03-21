@@ -1,4 +1,4 @@
-.PHONY: setup setup-server setup-tools run run-web run-server test test-unit test-integration lint build-web build-server deploy-server clean
+.PHONY: setup setup-server setup-tools run run-web run-server run-android test test-unit test-integration lint build-web build-apk build-server deploy-server clean
 
 FLUTTER := flutter
 PIP := pip
@@ -35,6 +35,23 @@ run:
 ## Run Flutter app in Chrome
 run-web:
 	$(FLUTTER) run -d chrome
+
+## Run on Android emulator (builds, installs, and launches)
+run-android:
+	./scripts/android-emulator.sh install
+	./scripts/android-emulator.sh launch
+
+## Start the Android emulator
+emulator-start:
+	./scripts/android-emulator.sh start
+
+## Stop the Android emulator
+emulator-stop:
+	./scripts/android-emulator.sh stop
+
+## Take an emulator screenshot
+emulator-screenshot:
+	./scripts/android-emulator.sh screenshot
 
 ## Run FastAPI backend locally (port 8000, auto-reload)
 run-server:
@@ -83,6 +100,14 @@ format:
 ## Build Flutter web release
 build-web:
 	$(FLUTTER) build web
+
+## Build Android debug APK
+build-apk:
+	$(FLUTTER) build apk --debug
+
+## Build Android release APK
+build-apk-release:
+	$(FLUTTER) build apk --release
 
 ## Build server Docker image
 build-server:

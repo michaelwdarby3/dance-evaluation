@@ -8,7 +8,7 @@ import 'pose_detector.dart';
 /// Creates the mobile (ML Kit) pose detector.
 PoseDetector createPoseDetector() => MobilePoseDetector();
 
-class MobilePoseDetector implements PoseDetector {
+class MobilePoseDetector extends PoseDetector {
   MobilePoseDetector()
       : _detector = mlkit.PoseDetector(
           options: mlkit.PoseDetectorOptions(

@@ -28,6 +28,10 @@ class CaptureController extends ChangeNotifier {
   PoseFrame? _currentFrame;
   PoseFrame? get currentFrame => _currentFrame;
 
+  /// Path/URL of the recorded video file, available after recording stops.
+  // ignore: unnecessary_getters_setters
+  String? videoPath;
+
   final List<PoseFrame> _recordedFrames = [];
   List<PoseFrame> get recordedFrames => List.unmodifiable(_recordedFrames);
 
@@ -84,6 +88,7 @@ class CaptureController extends ChangeNotifier {
     _recordedPersonFrames.clear();
     _personTracker.reset();
     _isMultiPerson = false;
+    videoPath = null;
     _recordingDuration = Duration.zero;
     _recordingElapsed = Duration.zero;
     _state = CaptureState.recording;
@@ -111,6 +116,7 @@ class CaptureController extends ChangeNotifier {
     _recordedPersonFrames.clear();
     _personTracker.reset();
     _isMultiPerson = false;
+    videoPath = null;
     _recordingDuration = Duration.zero;
     _recordingElapsed = Duration.zero;
     _state = CaptureState.recording;
@@ -277,6 +283,7 @@ class CaptureController extends ChangeNotifier {
     _personTracker.reset();
     _currentTrackedPersons = {};
     _isMultiPerson = false;
+    videoPath = null;
     _currentFrame = null;
     _recordingDuration = Duration.zero;
     _recordingElapsed = Duration.zero;

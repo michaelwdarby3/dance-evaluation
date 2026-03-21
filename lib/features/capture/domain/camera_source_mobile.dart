@@ -77,6 +77,32 @@ class MobileCameraSource implements CameraSource {
   bool get isFrontCamera =>
       _camera?.lensDirection == CameraLensDirection.front;
 
+  bool _isRecordingVideo = false;
+
+  @override
+  Future<void> startVideoRecording() async {
+    if (_controller == null || _isRecordingVideo) return;
+    try {
+      await _controller!.startVideoRecording();
+      _isRecordingVideo = true;
+    } catch (_) {
+      // Video recording may not be supported alongside image streaming
+      // on some devices. Non-fatal.
+    }
+  }
+
+  @override
+  Future<String?> stopVideoRecording() async {
+    if (_controller == null || !_isRecordingVideo) return null;
+    try {
+      _isRecordingVideo = false;
+      final xFile = await _controller!.stopVideoRecording();
+      return xFile.path;
+    } catch (_) {
+      return null;
+    }
+  }
+
   @override
   void dispose() {
     _controller?.dispose();

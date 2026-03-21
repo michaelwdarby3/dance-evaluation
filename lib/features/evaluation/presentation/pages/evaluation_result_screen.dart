@@ -3,6 +3,8 @@ import 'package:go_router/go_router.dart';
 
 import 'package:dance_evaluation/core/models/evaluation_result.dart';
 import 'package:dance_evaluation/core/models/multi_evaluation_result.dart';
+import 'package:dance_evaluation/core/services/service_locator.dart';
+import 'package:dance_evaluation/features/capture/presentation/capture_controller.dart';
 import 'package:dance_evaluation/features/evaluation/presentation/widgets/dimension_bar.dart';
 import 'package:dance_evaluation/features/evaluation/presentation/widgets/score_indicator.dart';
 
@@ -28,7 +30,9 @@ class EvaluationResultScreen extends StatelessWidget {
   }
 
   Widget _buildMultiPersonScreen(
-      BuildContext context, MultiPersonEvaluationResult multi) {
+    BuildContext context,
+    MultiPersonEvaluationResult multi,
+  ) {
     return DefaultTabController(
       length: multi.personCount,
       child: Scaffold(
@@ -89,7 +93,9 @@ class EvaluationResultScreen extends StatelessWidget {
   }
 
   Widget _buildSinglePersonScreen(
-      BuildContext context, EvaluationResult result) {
+    BuildContext context,
+    EvaluationResult result,
+  ) {
     return Scaffold(
       appBar: AppBar(title: const Text('Your Results')),
       body: SafeArea(
@@ -145,7 +151,134 @@ class EvaluationResultScreen extends StatelessWidget {
         ),
         const SizedBox(height: 32),
 
-        // Joint feedback
+        // Coaching summary
+        if (result.coachingSummary != null &&
+            result.coachingSummary!.isNotEmpty) ...[
+          const Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'Coaching',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFF7C4DFF).withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: const Color(0xFF7C4DFF).withValues(alpha: 0.3),
+              ),
+            ),
+            child: Text(
+              result.coachingSummary!,
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 14,
+                height: 1.5,
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+        ],
+
+        // Timing insights
+        if (result.timingInsights.isNotEmpty) ...[
+          const Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'Timing',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          ...result.timingInsights.map(
+            (t) => Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.only(top: 6),
+                    child: Icon(
+                      Icons.schedule,
+                      size: 14,
+                      color: Colors.white38,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      t,
+                      style: const TextStyle(
+                        color: Colors.white54,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+        ],
+
+        // Body-specific insights
+        if (result.jointInsights.isNotEmpty) ...[
+          const Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'Body Feedback',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          ...result.jointInsights.map(
+            (j) => Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.only(top: 6),
+                    child: Icon(
+                      Icons.accessibility_new,
+                      size: 14,
+                      color: Colors.white38,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      j,
+                      style: const TextStyle(
+                        color: Colors.white54,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+        ],
+
+        // Joint feedback (detailed)
         if (result.jointFeedback.isNotEmpty) ...[
           const Align(
             alignment: Alignment.centerLeft,
@@ -162,6 +295,38 @@ class EvaluationResultScreen extends StatelessWidget {
           ...result.jointFeedback.map(_buildJointCard),
           const SizedBox(height: 32),
         ],
+
+        // Watch playback button (shown when video is available).
+        Builder(
+          builder: (context) {
+            try {
+              final hasVideo = ServiceLocator.instance
+                  .get<CaptureController>()
+                  .videoPath !=
+                  null;
+              if (!hasVideo) return const SizedBox.shrink();
+            } catch (_) {
+              return const SizedBox.shrink();
+            }
+
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () => context.push('/playback'),
+                  icon: const Icon(Icons.play_circle_outline),
+                  label: const Text('Watch Playback'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF00E5FF),
+                    foregroundColor: Colors.black87,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
 
         // Actions
         Row(

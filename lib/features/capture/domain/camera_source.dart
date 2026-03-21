@@ -22,6 +22,13 @@ abstract class CameraSource {
   /// Whether the front/selfie camera is active (for mirroring).
   bool get isFrontCamera;
 
+  /// Start recording video to a file. Returns immediately.
+  Future<void> startVideoRecording() async {}
+
+  /// Stop recording and return the file path of the recorded video.
+  /// Returns null if recording was not supported or failed.
+  Future<String?> stopVideoRecording() async => null;
+
   /// Release camera resources.
   void dispose();
 }
