@@ -2,32 +2,176 @@
 
 ## Project Structure
 
-- `lib/` — Flutter client (Dart)
-- `server/` — Python FastAPI backend (Cloud Run)
-- `infra/` — Terraform IaC for GCP
+```
+lib/                 Flutter client (Dart)
+  core/              Shared models, constants, utils, services, storage
+  data/              Repositories (references, evaluation history)
+  features/          Feature modules (capture, evaluation, history, home, playback, references, upload)
+server/              Python FastAPI backend (Cloud Run) — stubs for Milestone 2
+infra/               Terraform IaC for GCP (Cloud Run)
+tools/               Python utilities for reference extraction & video generation
+scripts/             Shell scripts (Android emulator management, setup, dev)
+web/                 Web assets (index.html, pose_bridge.js for MediaPipe interop)
+android/             Android native config (package: com.danceval.dance_evaluation)
+assets/references/   6 built-in reference choreographies (JSON)
+assets/test_videos/  Test videos for reference generation
+```
 
 ## Flutter Architecture
 
-Feature-based organization under `lib/features/`. Each feature has `domain/`, `presentation/` (pages, widgets, controllers).
+Feature-based organization under `lib/features/`. Each feature has `domain/` (services, interfaces) and `presentation/` (pages, widgets, controllers).
 
-Core shared code in `lib/core/`: models, constants, utils, services.
+### Features
 
-## Key Patterns
+| Feature | Purpose |
+|---------|---------|
+| `capture` | Live camera pose detection with skeleton overlay, countdown, recording |
+| `evaluation` | DTW scoring pipeline, feedback generation, AI coaching, result display |
+| `history` | Score trend chart, session list with swipe-to-delete |
+| `home` | Landing screen with navigation to all flows |
+| `playback` | Video playback with synchronized skeleton overlay |
+| `references` | Browse/select/create/delete reference choreographies |
+| `upload` | Pick video file, extract poses frame-by-frame, process for evaluation |
 
-- **Service Locator** for DI (`lib/core/services/service_locator.dart`) — registered in `bootstrap.dart`
-- **GoRouter** for navigation (`lib/app.dart`)
-- **ChangeNotifier** for state management (e.g., `CaptureController`)
-- **Plain Dart classes** for models (no code generation in Milestone 1)
+### Key Patterns
+
+- **Service Locator** for DI — `lib/core/services/service_locator.dart`, registered in `bootstrap.dart`
+- **GoRouter** for navigation — `lib/app.dart`
+- **ChangeNotifier** for state — `CaptureController`, `UploadController`, `AudioService`
+- **Platform-conditional factories** — each platform service (camera, pose detector, storage, file picker, video extractor) has mobile/web/stub variants selected at compile time via conditional exports
+
+### Routes
+
+| Path | Screen |
+|------|--------|
+| `/` | Home |
+| `/references/:mode` | Reference list (mode: `capture`, `upload`, or `manage`) |
+| `/create-reference` | Create custom reference from video |
+| `/capture?ref=` | Live capture with camera |
+| `/upload?ref=` | Upload video for evaluation |
+| `/evaluation/:id?ref=` | Run evaluation pipeline, show results |
+| `/playback` | Video playback with skeleton overlay |
+| `/history` | Score history and trends |
+
+### Service Locator Registration (bootstrap.dart)
+
+`PoseDetector`, `CameraSource`, `EvaluationService`, `ReferenceRepository`, `CaptureController`, `VideoFilePicker`, `VideoPoseExtractor`, `UploadController`, `AudioService`, `AiCoachingService`, `EvaluationHistoryRepository`
+
+### Evaluation Pipeline
+
+1. Capture/upload produces a `PoseSequence` (list of 33-landmark `PoseFrame`s)
+2. `EvaluationService.evaluate()` normalizes sequences, runs DTW alignment
+3. Scores 4 dimensions: timing, technique, expression, spatial awareness
+4. Style-specific weights produce overall score (0-100)
+5. `FeedbackGenerator` analyzes DTW warping path for time-localized timing insights and direction-aware joint corrections
+6. Optional `AiCoachingService` enhances feedback via Claude API
+7. Results persisted via `EvaluationHistoryRepository`
+
+### Multi-Person Support
+
+The app supports evaluating multiple dancers simultaneously:
+- `PersonTracker` matches persons across frames by hip-centroid proximity
+- `MultiPoseSequence` holds per-person `PoseSequence`s
+- `EvaluationService.evaluateMulti()` matches user persons to reference persons, runs DTW per pair
+- UI shows tabbed per-person results with aggregate group score
+
+### Platform Implementations
+
+Each platform service uses a factory pattern with conditional exports:
+
+| Service | Mobile | Web | Stub |
+|---------|--------|-----|------|
+| PoseDetector | MLKit | MediaPipe JS (pose_bridge.js) | throws |
+| CameraSource | camera plugin | getUserMedia + MediaRecorder | throws |
+| VideoFilePicker | image_picker | HTML file input | throws |
+| VideoPoseExtractor | video_thumbnail + MLKit | MediaPipe detectPoseAtTime | throws |
+| ReferenceStorage | File I/O (app docs dir) | localStorage | no-op |
+| EvaluationStorage | File I/O (app docs dir) | localStorage | no-op |
+
+### Storage
+
+- **References**: `assets/references/` for built-in (6 choreos), `ReferenceStorage` for user-created
+- **Evaluation history**: `EvaluationStorage` with platform-specific persistence
+- **Video path**: held in `CaptureController.videoPath` during session (not persisted)
 
 ## Running
 
-Flutter CLI required. No backend needed for Milestone 1 (all on-device evaluation).
-
 ```bash
-flutter pub get
-flutter run
+make setup          # Install all deps (Flutter + server + tools)
+make run-web        # Run in Chrome
+make run-android    # Build, install, launch on emulator
+make test           # Run all Flutter tests
+make build-apk      # Build Android debug APK
 ```
 
-## Current Status: Milestone 1 (Walking Skeleton)
+Flutter CLI required. No backend needed — all evaluation runs on-device.
 
-On-device capture + MediaPipe pose detection + skeleton overlay + DTW evaluation against one hardcoded hip-hop reference + score display.
+### Android Emulator (WSL2)
+
+```bash
+make emulator-start   # Start the emulator
+make run-android      # Build + install + launch
+make emulator-screenshot
+```
+
+The emulator script uses the Windows-side Android SDK at `C:\Users\Mikew\android-sdk`.
+
+### Android Smoke Test
+
+```bash
+bash tools/android_smoke_test.sh
+```
+
+Automated 11-test suite: screen navigation, orientation changes, process kill/restart, crash detection. Screenshots saved to `test_results/`.
+
+### AI Coaching (Optional)
+
+Pass a Claude API key at build time to enable AI-enhanced feedback:
+```bash
+flutter run --dart-define=CLAUDE_API_KEY=sk-ant-...
+```
+Without a key, the app falls back to locally-generated feedback.
+
+## Server (Milestone 2 — Not Yet Implemented)
+
+FastAPI backend in `server/`. Currently only `GET /health` works; all evaluation endpoints return 501.
+
+```bash
+make setup-server
+make run-server       # localhost:8000
+make test-server
+make build-server     # Docker image
+```
+
+## Infrastructure
+
+Terraform in `infra/` targets GCP Cloud Run.
+
+```bash
+make deploy-infra GCP_PROJECT=your-project-id
+```
+
+## Tools
+
+```bash
+# Extract reference choreography from a video
+make extract-ref VIDEO=path/to/video.mp4 OUTPUT=assets/references/my_ref.json
+
+# Generate test dance videos (requires GPU + ModelScope)
+cd tools && python generate_dance_video.py
+```
+
+## Current Status
+
+**Milestone 1 is complete.** All on-device features are implemented and tested:
+- Live camera capture with real-time skeleton overlay and reference ghost
+- Video upload with frame-by-frame pose extraction
+- DTW-based evaluation with 4-dimension scoring
+- Rich verbal feedback (timing insights, joint corrections, coaching summary)
+- 6 built-in reference choreographies (hip-hop, K-pop, R&B at various difficulties)
+- Custom reference creation from user videos
+- Score history with trend charts
+- Video playback with skeleton overlay
+- Audio playback during capture
+- Multi-person evaluation support
+- Android and web platforms fully functional
