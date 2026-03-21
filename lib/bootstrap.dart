@@ -9,6 +9,7 @@ import 'package:dance_evaluation/features/capture/domain/pose_detector.dart';
 import 'package:dance_evaluation/features/capture/domain/pose_detector_factory.dart';
 import 'package:dance_evaluation/features/capture/presentation/capture_controller.dart';
 import 'package:dance_evaluation/data/reference_repository.dart';
+import 'package:dance_evaluation/core/services/audio_service.dart';
 import 'package:dance_evaluation/features/evaluation/domain/evaluation_service.dart';
 import 'package:dance_evaluation/features/upload/domain/video_file_picker.dart';
 import 'package:dance_evaluation/features/upload/domain/video_file_picker_factory.dart';
@@ -39,7 +40,10 @@ Future<void> bootstrap() async {
     captureController: capture,
   );
 
+  final audioService = AudioService();
+
   // Register in the service locator.
+  sl.register<AudioService>(audioService);
   sl.register<PoseDetector>(poseDetector);
   sl.register<CameraSource>(cameraSource);
   sl.register<EvaluationService>(evaluation);

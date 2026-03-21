@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:dance_evaluation/core/models/reference_choreography.dart';
+import 'package:dance_evaluation/core/services/audio_service.dart';
 import 'package:dance_evaluation/core/services/service_locator.dart';
 import 'package:dance_evaluation/data/reference_repository.dart';
 import 'package:dance_evaluation/features/capture/domain/camera_source.dart';
@@ -36,6 +37,7 @@ class _CaptureScreenState extends State<CaptureScreen>
   String? _errorMessage;
 
   ReferenceChoreography? _reference;
+  AudioService? _audioService;
 
   @override
   void initState() {
@@ -51,9 +53,14 @@ class _CaptureScreenState extends State<CaptureScreen>
     try {
       final repo = ServiceLocator.instance.get<ReferenceRepository>();
       final ref = await repo.load(key);
-      if (mounted) setState(() => _reference = ref);
+      if (!mounted) return;
+      setState(() => _reference = ref);
+
+      // Prepare audio so it's ready for instant playback.
+      _audioService = ServiceLocator.instance.get<AudioService>();
+      await _audioService!.prepare(ref);
     } catch (_) {
-      // Reference load failure shouldn't block capture.
+      // Reference/audio load failure shouldn't block capture.
     }
   }
 
@@ -63,6 +70,7 @@ class _CaptureScreenState extends State<CaptureScreen>
     _cameraSource?.stopFrameStream().catchError((_) {});
     _cameraSource?.dispose();
     _captureController?.removeListener(_onControllerChanged);
+    _audioService?.stop();
     super.dispose();
   }
 
@@ -104,12 +112,30 @@ class _CaptureScreenState extends State<CaptureScreen>
     }
   }
 
+  CaptureState? _previousState;
+
   void _onControllerChanged() {
     if (mounted) setState(() {});
 
-    // Navigate away when recording is done.
     final ctrl = _captureController;
-    if (ctrl != null && ctrl.state == CaptureState.done) {
+    if (ctrl == null) return;
+
+    // Start audio when recording begins (transition from countdown → recording).
+    if (ctrl.state == CaptureState.recording &&
+        _previousState != CaptureState.recording) {
+      _audioService?.play();
+    }
+
+    // Stop audio when recording ends.
+    if (ctrl.state == CaptureState.done &&
+        _previousState != CaptureState.done) {
+      _audioService?.stop();
+    }
+
+    _previousState = ctrl.state;
+
+    // Navigate away when recording is done.
+    if (ctrl.state == CaptureState.done) {
       Future.microtask(() {
         if (mounted) {
           final refParam = widget.referenceKey != null
