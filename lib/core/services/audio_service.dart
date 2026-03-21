@@ -5,12 +5,48 @@ import 'package:just_audio/just_audio.dart';
 
 import 'package:dance_evaluation/core/models/reference_choreography.dart';
 
+/// Thin wrapper around audio player operations so we can mock in tests.
+abstract class AudioPlayerAdapter {
+  Future<void> setUrl(String url);
+  Future<void> setAsset(String assetPath);
+  Future<void> setAudioSource(AudioSource source);
+  Future<void> seek(Duration position);
+  Future<void> play();
+  Future<void> stop();
+  Future<void> dispose();
+}
+
+/// Default implementation using just_audio's AudioPlayer.
+class JustAudioPlayerAdapter implements AudioPlayerAdapter {
+  final AudioPlayer _player = AudioPlayer();
+
+  @override
+  Future<void> setUrl(String url) => _player.setUrl(url);
+  @override
+  Future<void> setAsset(String assetPath) => _player.setAsset(assetPath);
+  @override
+  Future<void> setAudioSource(AudioSource source) =>
+      _player.setAudioSource(source);
+  @override
+  Future<void> seek(Duration position) => _player.seek(position);
+  @override
+  Future<void> play() => _player.play();
+  @override
+  Future<void> stop() => _player.stop();
+  @override
+  Future<void> dispose() => _player.dispose();
+}
+
 /// Manages audio playback during dance capture.
 ///
 /// Plays the reference's audio track if available, otherwise generates
 /// a metronome click track based on BPM.
 class AudioService extends ChangeNotifier {
-  AudioPlayer? _player;
+  AudioService({AudioPlayerAdapter Function()? playerFactory})
+      : _playerFactory = playerFactory ?? (() => JustAudioPlayerAdapter());
+
+  final AudioPlayerAdapter Function() _playerFactory;
+  AudioPlayerAdapter? _player;
   bool _isPlaying = false;
   bool get isPlaying => _isPlaying;
 
@@ -18,7 +54,7 @@ class AudioService extends ChangeNotifier {
   /// Call before starting capture so playback begins instantly.
   Future<void> prepare(ReferenceChoreography reference) async {
     await stop();
-    _player = AudioPlayer();
+    _player = _playerFactory();
 
     try {
       if (reference.audioAsset != null &&
@@ -72,10 +108,8 @@ class AudioService extends ChangeNotifier {
             .clamp(1, 120);
 
     // Build a playlist of short tick sounds with gaps between them.
-    // Using a generated sine wave click via AudioSource.
     final sources = <AudioSource>[];
     for (var i = 0; i < totalBeats; i++) {
-      // Short tick (50ms) followed by silence for the rest of the beat.
       sources.add(AudioSource.uri(
         Uri.dataFromBytes(
           _generateTickWav(50),
