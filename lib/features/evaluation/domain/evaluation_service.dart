@@ -5,11 +5,11 @@ import 'package:dance_evaluation/core/constants/style_constants.dart';
 import 'package:dance_evaluation/core/models/evaluation_result.dart';
 import 'package:dance_evaluation/core/models/multi_evaluation_result.dart';
 import 'package:dance_evaluation/core/models/multi_pose_sequence.dart';
-import 'package:dance_evaluation/core/models/pose_frame.dart';
 import 'package:dance_evaluation/core/models/pose_sequence.dart';
 import 'package:dance_evaluation/core/models/reference_choreography.dart';
 import 'package:dance_evaluation/core/utils/dtw.dart';
 import 'package:dance_evaluation/core/utils/pose_math.dart';
+import 'package:dance_evaluation/features/evaluation/domain/feedback_generator.dart';
 
 /// On-device evaluation service for Milestone 1.
 ///
@@ -19,6 +19,8 @@ class EvaluationService {
   /// Maximum DTW distance that maps to a score of 0.
   /// Distances beyond this are clamped to 0.
   static const double _maxDistance = 50.0;
+
+  final FeedbackGenerator _feedbackGenerator = FeedbackGenerator();
 
   /// Evaluate [userSequence] against [reference].
   Future<EvaluationResult> evaluate(
@@ -50,7 +52,7 @@ class EvaluationService {
 
     final id = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
 
-    return EvaluationResult(
+    final result = EvaluationResult(
       id: id,
       overallScore: overallScore.clamp(0, 100),
       dimensions: [
@@ -79,6 +81,27 @@ class EvaluationService {
       drills: const [],
       createdAt: DateTime.now(),
       style: reference.style,
+    );
+
+    // Generate detailed, time-localized feedback.
+    final detailed = _feedbackGenerator.generate(
+      refSequence: refNorm,
+      userSequence: userNorm,
+      warpingPath: path,
+      result: result,
+    );
+
+    return EvaluationResult(
+      id: result.id,
+      overallScore: result.overallScore,
+      dimensions: result.dimensions,
+      jointFeedback: result.jointFeedback,
+      drills: result.drills,
+      createdAt: result.createdAt,
+      style: result.style,
+      timingInsights: detailed.timingInsights,
+      jointInsights: detailed.jointInsights,
+      coachingSummary: detailed.overallCoaching,
     );
   }
 

@@ -51,6 +51,22 @@ class HomeScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 16),
+              OutlinedButton.icon(
+                icon: const Icon(Icons.timeline),
+                label: const Text('History'),
+                onPressed: () => context.go('/history'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white70,
+                  side: const BorderSide(color: Colors.white24),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                  textStyle: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
               TextButton.icon(
                 icon: const Icon(Icons.library_music),
                 label: const Text('Manage References'),

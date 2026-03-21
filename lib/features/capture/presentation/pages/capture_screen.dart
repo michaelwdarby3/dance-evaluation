@@ -120,16 +120,22 @@ class _CaptureScreenState extends State<CaptureScreen>
     final ctrl = _captureController;
     if (ctrl == null) return;
 
-    // Start audio when recording begins (transition from countdown → recording).
+    // Start audio and video recording when recording begins.
     if (ctrl.state == CaptureState.recording &&
         _previousState != CaptureState.recording) {
       _audioService?.play();
+      _cameraSource?.startVideoRecording();
     }
 
-    // Stop audio when recording ends.
+    // Stop audio and video recording when recording ends.
     if (ctrl.state == CaptureState.done &&
         _previousState != CaptureState.done) {
       _audioService?.stop();
+      _cameraSource?.stopVideoRecording().then((path) {
+        if (path != null) {
+          ctrl.videoPath = path;
+        }
+      });
     }
 
     _previousState = ctrl.state;

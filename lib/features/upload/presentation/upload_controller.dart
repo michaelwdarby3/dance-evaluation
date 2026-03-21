@@ -74,6 +74,7 @@ class UploadController extends ChangeNotifier {
       notifyListeners();
 
       _capture.startExternalRecording();
+      _capture.videoPath = videoUrl;
 
       await _extractor.extractMultiPoses(
         videoUrl: videoUrl,

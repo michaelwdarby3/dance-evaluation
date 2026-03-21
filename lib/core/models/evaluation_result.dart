@@ -16,6 +16,20 @@ class DimensionScore {
   /// Human-readable explanation of the score.
   final String summary;
 
+  Map<String, dynamic> toJson() => {
+        'dimension': dimension.name,
+        'score': score,
+        'summary': summary,
+      };
+
+  factory DimensionScore.fromJson(Map<String, dynamic> json) => DimensionScore(
+        dimension: EvalDimension.values.firstWhere(
+          (d) => d.name == json['dimension'],
+        ),
+        score: (json['score'] as num).toDouble(),
+        summary: json['summary'] as String,
+      );
+
   @override
   String toString() =>
       'DimensionScore(${dimension.name}: $score - $summary)';
@@ -46,6 +60,22 @@ class JointFeedback {
   /// Suggested correction.
   final String correction;
 
+  Map<String, dynamic> toJson() => {
+        'jointName': jointName,
+        'landmarkIndices': landmarkIndices,
+        'score': score,
+        'issue': issue,
+        'correction': correction,
+      };
+
+  factory JointFeedback.fromJson(Map<String, dynamic> json) => JointFeedback(
+        jointName: json['jointName'] as String,
+        landmarkIndices: (json['landmarkIndices'] as List).cast<int>(),
+        score: (json['score'] as num).toDouble(),
+        issue: json['issue'] as String,
+        correction: json['correction'] as String,
+      );
+
   @override
   String toString() => 'JointFeedback($jointName: $score)';
 }
@@ -68,6 +98,25 @@ class DrillRecommendation {
   /// Lower number = higher priority.
   final int priority;
 
+  Map<String, dynamic> toJson() => {
+        'drillId': drillId,
+        'name': name,
+        'targetJoint': targetJoint,
+        'targetDimension': targetDimension.name,
+        'priority': priority,
+      };
+
+  factory DrillRecommendation.fromJson(Map<String, dynamic> json) =>
+      DrillRecommendation(
+        drillId: json['drillId'] as String,
+        name: json['name'] as String,
+        targetJoint: json['targetJoint'] as String,
+        targetDimension: EvalDimension.values.firstWhere(
+          (d) => d.name == json['targetDimension'],
+        ),
+        priority: json['priority'] as int,
+      );
+
   @override
   String toString() => 'DrillRecommendation($name, priority: $priority)';
 }
@@ -82,6 +131,10 @@ class EvaluationResult {
     required this.drills,
     required this.createdAt,
     required this.style,
+    this.referenceName,
+    this.timingInsights = const [],
+    this.jointInsights = const [],
+    this.coachingSummary,
   });
 
   final String id;
@@ -100,6 +153,59 @@ class EvaluationResult {
 
   final DateTime createdAt;
   final DanceStyle style;
+
+  /// Name of the reference choreography used (for display in history).
+  final String? referenceName;
+
+  /// Time-localized timing feedback strings.
+  final List<String> timingInsights;
+
+  /// Direction-aware, time-localized joint feedback strings.
+  final List<String> jointInsights;
+
+  /// Overall coaching summary (local or AI-generated).
+  final String? coachingSummary;
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'overallScore': overallScore,
+        'dimensions': dimensions.map((d) => d.toJson()).toList(),
+        'jointFeedback': jointFeedback.map((j) => j.toJson()).toList(),
+        'drills': drills.map((d) => d.toJson()).toList(),
+        'createdAt': createdAt.toIso8601String(),
+        'style': style.name,
+        'referenceName': referenceName,
+        'timingInsights': timingInsights,
+        'jointInsights': jointInsights,
+        'coachingSummary': coachingSummary,
+      };
+
+  factory EvaluationResult.fromJson(Map<String, dynamic> json) =>
+      EvaluationResult(
+        id: json['id'] as String,
+        overallScore: (json['overallScore'] as num).toDouble(),
+        dimensions: (json['dimensions'] as List)
+            .map((d) => DimensionScore.fromJson(d as Map<String, dynamic>))
+            .toList(),
+        jointFeedback: (json['jointFeedback'] as List)
+            .map((j) => JointFeedback.fromJson(j as Map<String, dynamic>))
+            .toList(),
+        drills: (json['drills'] as List)
+            .map((d) => DrillRecommendation.fromJson(d as Map<String, dynamic>))
+            .toList(),
+        createdAt: DateTime.parse(json['createdAt'] as String),
+        style: DanceStyle.values.firstWhere(
+          (s) => s.name == json['style'],
+        ),
+        referenceName: json['referenceName'] as String?,
+        timingInsights: (json['timingInsights'] as List?)
+                ?.cast<String>() ??
+            const [],
+        jointInsights: (json['jointInsights'] as List?)
+                ?.cast<String>() ??
+            const [],
+        coachingSummary: json['coachingSummary'] as String?,
+      );
 
   @override
   String toString() =>

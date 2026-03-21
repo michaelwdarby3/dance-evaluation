@@ -23,6 +23,11 @@ void main() {
           builder: (context, state) =>
               const Scaffold(body: Text('Create Reference')),
         ),
+        GoRoute(
+          path: '/history',
+          builder: (context, state) =>
+              const Scaffold(body: Text('History')),
+        ),
       ],
     );
     return MaterialApp.router(routerConfig: router);
@@ -53,7 +58,6 @@ void main() {
       await tester.pumpWidget(buildSubject());
 
       expect(find.text('Upload Video'), findsOneWidget);
-      expect(find.byType(OutlinedButton), findsOneWidget);
     });
 
     testWidgets('Start Dancing navigates to reference selection',
@@ -70,7 +74,7 @@ void main() {
         (tester) async {
       await tester.pumpWidget(buildSubject());
 
-      await tester.tap(find.byType(OutlinedButton));
+      await tester.tap(find.text('Upload Video'));
       await tester.pumpAndSettle();
 
       expect(find.text('References upload'), findsOneWidget);
