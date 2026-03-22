@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:dance_evaluation/core/models/evaluation_result.dart';
 import 'package:dance_evaluation/core/models/multi_evaluation_result.dart';
 import 'package:dance_evaluation/core/services/service_locator.dart';
+import 'package:dance_evaluation/core/services/settings_service.dart';
 import 'package:dance_evaluation/data/reference_repository.dart';
 import 'package:dance_evaluation/features/capture/presentation/capture_controller.dart';
 import 'package:dance_evaluation/features/capture/presentation/pages/capture_screen.dart';
@@ -17,6 +18,7 @@ import 'package:dance_evaluation/features/playback/presentation/pages/playback_s
 import 'package:dance_evaluation/data/evaluation_history_repository.dart';
 import 'package:dance_evaluation/features/references/presentation/pages/create_reference_screen.dart';
 import 'package:dance_evaluation/features/references/presentation/pages/reference_list_screen.dart';
+import 'package:dance_evaluation/features/settings/presentation/pages/settings_screen.dart';
 import 'package:dance_evaluation/features/upload/presentation/pages/upload_processing_screen.dart';
 
 final _router = GoRouter(
@@ -75,6 +77,10 @@ final _router = GoRouter(
     GoRoute(
       path: '/history',
       builder: (context, state) => const HistoryScreen(),
+    ),
+    GoRoute(
+      path: '/settings',
+      builder: (context, state) => const SettingsScreen(),
     ),
     GoRoute(
       path: '/evaluation/:id',
@@ -160,7 +166,10 @@ class _EvaluationLoaderState extends State<_EvaluationLoader> {
 
         // Try AI-enhanced coaching (non-blocking — falls back to local).
         final aiCoaching = sl.get<AiCoachingService>();
-        if (aiCoaching.isConfigured) {
+        final settingsService = sl.get<SettingsService>();
+        final aiEnabled = settingsService.aiCoaching &&
+            (aiCoaching.isConfigured || settingsService.aiApiKey.isNotEmpty);
+        if (aiEnabled) {
           final localFeedback = DetailedFeedback(
             timingInsights: result.timingInsights,
             jointInsights: result.jointInsights,

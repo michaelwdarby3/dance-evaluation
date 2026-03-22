@@ -74,6 +74,12 @@ class HomeScreen extends StatelessWidget {
                 label: const Text('Manage References'),
                 onPressed: () => context.go('/references/manage'),
               ),
+              const SizedBox(height: 8),
+              TextButton.icon(
+                icon: const Icon(Icons.settings),
+                label: const Text('Settings'),
+                onPressed: () => context.go('/settings'),
+              ),
             ],
           ),
           ),

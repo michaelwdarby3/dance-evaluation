@@ -12,6 +12,7 @@ import 'package:dance_evaluation/features/capture/domain/pose_detector.dart';
 import 'package:dance_evaluation/features/capture/presentation/capture_controller.dart';
 import 'package:dance_evaluation/features/capture/presentation/widgets/multi_skeleton_painter.dart';
 import 'package:dance_evaluation/features/capture/presentation/widgets/reference_ghost_painter.dart';
+import 'package:dance_evaluation/core/services/settings_service.dart';
 import 'package:dance_evaluation/features/capture/presentation/widgets/skeleton_painter.dart';
 
 /// Full-screen camera capture with real-time skeleton overlay.
@@ -38,6 +39,7 @@ class _CaptureScreenState extends State<CaptureScreen>
 
   ReferenceChoreography? _reference;
   AudioService? _audioService;
+  SettingsService? _settingsService;
 
   @override
   void initState() {
@@ -56,7 +58,8 @@ class _CaptureScreenState extends State<CaptureScreen>
       if (!mounted) return;
       setState(() => _reference = ref);
 
-      // Prepare audio so it's ready for instant playback.
+      // Load settings and prepare audio.
+      _settingsService = ServiceLocator.instance.get<SettingsService>();
       _audioService = ServiceLocator.instance.get<AudioService>();
       await _audioService!.prepare(ref);
     } catch (_) {
@@ -120,22 +123,30 @@ class _CaptureScreenState extends State<CaptureScreen>
     final ctrl = _captureController;
     if (ctrl == null) return;
 
+    final settings = _settingsService;
+
     // Start audio and video recording when recording begins.
     if (ctrl.state == CaptureState.recording &&
         _previousState != CaptureState.recording) {
-      _audioService?.play();
-      _cameraSource?.startVideoRecording();
+      if (settings == null || settings.audioEnabled) {
+        _audioService?.play();
+      }
+      if (settings == null || settings.videoRecording) {
+        _cameraSource?.startVideoRecording();
+      }
     }
 
     // Stop audio and video recording when recording ends.
     if (ctrl.state == CaptureState.done &&
         _previousState != CaptureState.done) {
       _audioService?.stop();
-      _cameraSource?.stopVideoRecording().then((path) {
-        if (path != null) {
-          ctrl.videoPath = path;
-        }
-      });
+      if (settings == null || settings.videoRecording) {
+        _cameraSource?.stopVideoRecording().then((path) {
+          if (path != null) {
+            ctrl.videoPath = path;
+          }
+        });
+      }
     }
 
     _previousState = ctrl.state;
@@ -218,34 +229,38 @@ class _CaptureScreenState extends State<CaptureScreen>
 
           // Reference ghost overlay (shown during recording).
           if (_reference != null &&
-              capture.state == CaptureState.recording)
+              capture.state == CaptureState.recording &&
+              (_settingsService?.referenceGhost ?? true))
             CustomPaint(
               painter: ReferenceGhostPainter(
                 referenceSequence: _reference!.poses,
                 elapsed: capture.recordingDuration,
                 canvasSize: MediaQuery.of(context).size,
+                opacity: _settingsService?.ghostOpacity ?? 0.5,
               ),
             ),
 
           // Skeleton overlay.
-          if (capture.currentTrackedPersons.isNotEmpty)
-            CustomPaint(
-              painter: MultiSkeletonPainter(
-                trackedPersons: capture.currentTrackedPersons,
-                imageSize: camera.previewSize,
-                rotationDegrees: 0,
-                isFrontCamera: camera.isFrontCamera,
+          if ((_settingsService?.skeletonOverlay ?? true)) ...[
+            if (capture.currentTrackedPersons.isNotEmpty)
+              CustomPaint(
+                painter: MultiSkeletonPainter(
+                  trackedPersons: capture.currentTrackedPersons,
+                  imageSize: camera.previewSize,
+                  rotationDegrees: 0,
+                  isFrontCamera: camera.isFrontCamera,
+                ),
+              )
+            else if (capture.currentFrame != null)
+              CustomPaint(
+                painter: SkeletonPainter(
+                  currentFrame: capture.currentFrame,
+                  imageSize: camera.previewSize,
+                  rotationDegrees: 0,
+                  isFrontCamera: camera.isFrontCamera,
+                ),
               ),
-            )
-          else if (capture.currentFrame != null)
-            CustomPaint(
-              painter: SkeletonPainter(
-                currentFrame: capture.currentFrame,
-                imageSize: camera.previewSize,
-                rotationDegrees: 0,
-                isFrontCamera: camera.isFrontCamera,
-              ),
-            ),
+          ],
 
           // Countdown overlay.
           if (capture.state == CaptureState.countdown)

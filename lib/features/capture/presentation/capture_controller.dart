@@ -13,10 +13,17 @@ enum CaptureState { idle, countdown, recording, processing, done }
 
 /// Manages the capture lifecycle: countdown, recording, and pose collection.
 class CaptureController extends ChangeNotifier {
-  CaptureController({required PoseDetector poseDetector})
-      : _poseDetector = poseDetector;
+  CaptureController({
+    required PoseDetector poseDetector,
+    int countdownDuration = 3,
+    int maxRecordingDuration = 30,
+  })  : _poseDetector = poseDetector,
+        _initialCountdown = countdownDuration,
+        _maxSeconds = maxRecordingDuration;
 
   final PoseDetector _poseDetector;
+  final int _initialCountdown;
+  final int _maxSeconds;
 
   // ---------------------------------------------------------------------------
   // State
@@ -50,7 +57,7 @@ class CaptureController extends ChangeNotifier {
   Duration get recordingDuration => _recordingDuration;
 
   /// Maximum recording duration.
-  static const Duration maxDuration = Duration(seconds: 30);
+  Duration get maxDuration => Duration(seconds: _maxSeconds);
 
   PoseDetector get poseDetector => _poseDetector;
 
@@ -65,7 +72,7 @@ class CaptureController extends ChangeNotifier {
   /// Starts a 3-second countdown, then begins recording.
   Future<void> startCountdown() async {
     _state = CaptureState.countdown;
-    _countdownSeconds = 3;
+    _countdownSeconds = _initialCountdown;
     notifyListeners();
 
     final completer = Completer<void>();
@@ -287,7 +294,7 @@ class CaptureController extends ChangeNotifier {
     _currentFrame = null;
     _recordingDuration = Duration.zero;
     _recordingElapsed = Duration.zero;
-    _countdownSeconds = 3;
+    _countdownSeconds = _initialCountdown;
     _state = CaptureState.idle;
     notifyListeners();
   }

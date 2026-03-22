@@ -53,4 +53,12 @@ class EvaluationHistoryRepository {
   List<EvaluationResult> listByStyle(String styleName) {
     return listAll().where((r) => r.style.name == styleName).toList();
   }
+
+  /// Deletes all evaluation history.
+  void clearAll() {
+    for (final result in listAll()) {
+      _storage.delete(result.id);
+    }
+    _cache = null;
+  }
 }

@@ -28,6 +28,11 @@ void main() {
           builder: (context, state) =>
               const Scaffold(body: Text('History')),
         ),
+        GoRoute(
+          path: '/settings',
+          builder: (context, state) =>
+              const Scaffold(body: Text('Settings Page')),
+        ),
       ],
     );
     return MaterialApp.router(routerConfig: router);
@@ -88,6 +93,15 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('References manage'), findsOneWidget);
+    });
+
+    testWidgets('Settings navigates to settings page', (tester) async {
+      await tester.pumpWidget(buildSubject());
+
+      await tester.tap(find.text('Settings'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Settings Page'), findsOneWidget);
     });
   });
 }

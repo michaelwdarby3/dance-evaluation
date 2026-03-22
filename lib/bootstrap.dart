@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:dance_evaluation/app.dart';
 import 'package:dance_evaluation/core/services/service_locator.dart';
+import 'package:dance_evaluation/core/services/settings_service.dart';
 import 'package:dance_evaluation/core/storage/reference_storage_factory.dart';
 import 'package:dance_evaluation/features/capture/domain/camera_source.dart';
 import 'package:dance_evaluation/features/capture/domain/camera_source_factory.dart';
@@ -26,6 +27,11 @@ Future<void> bootstrap() async {
 
   final sl = ServiceLocator.instance;
 
+  // Settings (load first so other services can read them).
+  final settings = SettingsService();
+  await settings.initialize();
+  sl.register<SettingsService>(settings);
+
   // Create services via platform-conditional factories.
   final poseDetector = createPoseDetector();
   final cameraSource = createCameraSource();
@@ -33,7 +39,11 @@ Future<void> bootstrap() async {
   final storage = createReferenceStorage();
   await storage.initialize();
   final referenceRepo = ReferenceRepository(storage: storage);
-  final capture = CaptureController(poseDetector: poseDetector);
+  final capture = CaptureController(
+    poseDetector: poseDetector,
+    countdownDuration: settings.countdownSeconds,
+    maxRecordingDuration: settings.maxRecordingSeconds,
+  );
 
   final videoFilePicker = createVideoFilePicker();
   final videoPoseExtractor = createVideoPoseExtractor();

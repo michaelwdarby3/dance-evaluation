@@ -116,6 +116,15 @@ class ReferenceRepository {
     return [..._userRefs.keys, ...assetKeys];
   }
 
+  /// Deletes all user-created references.
+  void deleteAllUserRefs() {
+    loadFromStorage();
+    for (final key in _userRefs.keys.toList()) {
+      _storage?.delete(key);
+    }
+    _userRefs.clear();
+  }
+
   /// Lists all loaded/saved references with their metadata (no I/O for
   /// user refs, loads from assets for bundled ones).
   Future<List<ReferenceChoreography>> listAll() async {
