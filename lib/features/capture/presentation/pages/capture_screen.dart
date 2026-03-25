@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:dance_evaluation/core/models/reference_choreography.dart';
@@ -105,6 +106,18 @@ class _CaptureScreenState extends State<CaptureScreen>
       _cameraSource = cameraSource;
       _poseDetector = poseDetector;
       _captureController = captureController;
+
+      // Load settings early so they're available before reference loads.
+      try {
+        _settingsService ??= sl.get<SettingsService>();
+        // Sync configurable durations from settings into controller.
+        captureController.updateDurations(
+          countdownSeconds: _settingsService?.countdownSeconds,
+          maxRecordingSeconds: _settingsService?.maxRecordingSeconds,
+        );
+      } catch (_) {
+        // Settings may not be registered in test environments.
+      }
       _captureController!.addListener(_onControllerChanged);
 
       await cameraSource.startFrameStream(_onFrame);
@@ -124,10 +137,19 @@ class _CaptureScreenState extends State<CaptureScreen>
     if (ctrl == null) return;
 
     final settings = _settingsService;
+    final haptic = settings?.hapticFeedback ?? true;
+
+    // Haptic on countdown ticks.
+    if (haptic &&
+        ctrl.state == CaptureState.countdown &&
+        _previousState == CaptureState.countdown) {
+      HapticFeedback.lightImpact();
+    }
 
     // Start audio and video recording when recording begins.
     if (ctrl.state == CaptureState.recording &&
         _previousState != CaptureState.recording) {
+      if (haptic) HapticFeedback.heavyImpact();
       if (settings == null || settings.audioEnabled) {
         _audioService?.play();
       }
@@ -139,6 +161,7 @@ class _CaptureScreenState extends State<CaptureScreen>
     // Stop audio and video recording when recording ends.
     if (ctrl.state == CaptureState.done &&
         _previousState != CaptureState.done) {
+      if (haptic) HapticFeedback.mediumImpact();
       _audioService?.stop();
       if (settings == null || settings.videoRecording) {
         _cameraSource?.stopVideoRecording().then((path) {
@@ -182,9 +205,18 @@ class _CaptureScreenState extends State<CaptureScreen>
     final detector = _poseDetector;
     if (ctrl == null || detector == null) return;
 
-    final frames = await detector.detectMultiPose(input);
-    if (frames.isNotEmpty) {
-      ctrl.onMultiPoseDetected(frames);
+    final useMulti = _settingsService?.multiPersonDetection ?? true;
+
+    if (useMulti) {
+      final frames = await detector.detectMultiPose(input);
+      if (frames.isNotEmpty) {
+        ctrl.onMultiPoseDetected(frames);
+      }
+    } else {
+      final frame = await detector.detectPose(input);
+      if (frame != null) {
+        ctrl.onPoseDetected(frame);
+      }
     }
   }
 
@@ -224,8 +256,11 @@ class _CaptureScreenState extends State<CaptureScreen>
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // Camera preview.
-          camera.buildPreview(),
+          // Camera preview (optionally mirrored).
+          if (_settingsService?.mirrorPreview ?? true)
+            Transform.flip(flipX: true, child: camera.buildPreview())
+          else
+            camera.buildPreview(),
 
           // Reference ghost overlay (shown during recording).
           if (_reference != null &&

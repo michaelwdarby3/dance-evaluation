@@ -22,8 +22,14 @@ class CaptureController extends ChangeNotifier {
         _maxSeconds = maxRecordingDuration;
 
   final PoseDetector _poseDetector;
-  final int _initialCountdown;
-  final int _maxSeconds;
+  int _initialCountdown;
+  int _maxSeconds;
+
+  /// Update configurable durations (e.g. from settings changes).
+  void updateDurations({int? countdownSeconds, int? maxRecordingSeconds}) {
+    if (countdownSeconds != null) _initialCountdown = countdownSeconds;
+    if (maxRecordingSeconds != null) _maxSeconds = maxRecordingSeconds;
+  }
 
   // ---------------------------------------------------------------------------
   // State
