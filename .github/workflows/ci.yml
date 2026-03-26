@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Unit & Widget Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+
+      - run: flutter analyze
+
+      - run: flutter test
+
+  integration-web:
+    name: Web Integration Tests
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+
+      - name: Run integration tests in Chrome
+        run: |
+          chromedriver --port=4444 &
+          sleep 2
+          for f in integration_test/*_test.dart; do
+            flutter drive \
+              --driver=test_driver/integration_test.dart \
+              --target="$f" \
+              -d chrome || { kill %1 2>/dev/null; exit 1; }
+          done
+          kill %1 2>/dev/null || true
+
+  # integration-android:
+  #   name: Android Integration Tests
+  #   runs-on: ubuntu-latest
+  #   needs: test
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #
+  #     - uses: subosito/flutter-action@v2
+  #       with:
+  #         channel: stable
+  #         cache: true
+  #
+  #     - run: flutter pub get
+  #
+  #     - name: Enable KVM
+  #       run: |
+  #         echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+  #         sudo udevadm control --reload-rules
+  #         sudo udevadm trigger --name-match=kvm
+  #
+  #     - uses: reactivecircus/android-emulator-runner@v2
+  #       with:
+  #         api-level: 33
+  #         target: google_apis
+  #         arch: x86_64
+  #         script: |
+  #           for f in integration_test/*_test.dart; do
+  #             flutter drive \
+  #               --driver=test_driver/integration_test.dart \
+  #               --target="$f" \
+  #               -d emulator-5554 || exit 1
+  #           done

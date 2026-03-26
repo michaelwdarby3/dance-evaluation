@@ -5,10 +5,12 @@ import 'package:dance_evaluation/core/constants/style_constants.dart';
 import 'package:dance_evaluation/core/models/evaluation_result.dart';
 import 'package:dance_evaluation/core/models/multi_evaluation_result.dart';
 import 'package:dance_evaluation/core/models/multi_pose_sequence.dart';
+import 'package:dance_evaluation/core/models/pose_frame.dart';
 import 'package:dance_evaluation/core/models/pose_sequence.dart';
 import 'package:dance_evaluation/core/models/reference_choreography.dart';
 import 'package:dance_evaluation/core/utils/dtw.dart';
 import 'package:dance_evaluation/core/utils/pose_math.dart';
+import 'package:dance_evaluation/features/evaluation/domain/drill_catalog.dart';
 import 'package:dance_evaluation/features/evaluation/domain/feedback_generator.dart';
 
 /// On-device evaluation service for Milestone 1.
@@ -23,16 +25,32 @@ class EvaluationService {
   final FeedbackGenerator _feedbackGenerator = FeedbackGenerator();
 
   /// Evaluate [userSequence] against [reference].
+  ///
+  /// If [onProgress] is provided, it will be called with the current stage name
+  /// and a progress value from 0.0 to 1.0.
+  /// Minimum confidence threshold. Set via [minConfidence] parameter or
+  /// defaults to 0.3. Frames with average landmark visibility below this
+  /// are dropped before DTW.
+  double _minConfidence = 0.3;
+
+  /// Set the minimum confidence threshold for filtering.
+  set minConfidence(double v) => _minConfidence = v;
+
   Future<EvaluationResult> evaluate(
     PoseSequence userSequence,
-    ReferenceChoreography reference,
-  ) async {
+    ReferenceChoreography reference, {
+    void Function(String stage, double progress)? onProgress,
+  }) async {
+    onProgress?.call('Normalizing poses...', 0.1);
     final refNorm = reference.poses.normalize();
-    final userNorm = userSequence.normalize();
+    final userFiltered = _filterByConfidence(userSequence);
+    final userNorm = userFiltered.normalize();
 
+    onProgress?.call('Aligning sequences (DTW)...', 0.3);
     final dtwResult = computeDtw(refNorm, userNorm);
     final path = dtwResult.warpingPath;
 
+    onProgress?.call('Scoring dimensions...', 0.5);
     final timingScore = _scoreTimingFromPath(path, refNorm.frames.length, userNorm.frames.length);
     final techniqueScore = _scoreTechnique(refNorm, userNorm, path);
     final expressionScore = _scoreExpression(refNorm, userNorm, path);
@@ -48,6 +66,7 @@ class EvaluationService {
 
     final overallScore = weights.weightedScore(dimensionScores);
 
+    onProgress?.call('Analyzing joints...', 0.65);
     final jointFeedback = _analyzeJoints(refNorm, userNorm, path);
 
     final id = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
@@ -83,6 +102,13 @@ class EvaluationService {
       style: reference.style,
     );
 
+    // Generate drill recommendations based on weak areas.
+    final drills = DrillCatalog.recommend(
+      dimensions: result.dimensions,
+      jointFeedback: jointFeedback,
+    );
+
+    onProgress?.call('Generating feedback...', 0.8);
     // Generate detailed, time-localized feedback.
     final detailed = _feedbackGenerator.generate(
       refSequence: refNorm,
@@ -91,12 +117,13 @@ class EvaluationService {
       result: result,
     );
 
+    onProgress?.call('Complete!', 1.0);
     return EvaluationResult(
       id: result.id,
       overallScore: result.overallScore,
       dimensions: result.dimensions,
       jointFeedback: result.jointFeedback,
-      drills: result.drills,
+      drills: drills,
       createdAt: result.createdAt,
       style: result.style,
       timingInsights: detailed.timingInsights,
@@ -111,24 +138,31 @@ class EvaluationService {
   /// proximity, runs [evaluate] per pair, and aggregates scores.
   Future<MultiPersonEvaluationResult> evaluateMulti(
     MultiPoseSequence userSequence,
-    ReferenceChoreography reference,
-  ) async {
+    ReferenceChoreography reference, {
+    void Function(String stage, double progress)? onProgress,
+  }) async {
     final refPersons = reference.personPoses;
     final userPersons = userSequence.personSequences;
 
     if (userPersons.length == 1 && refPersons.length == 1) {
-      final result = await evaluate(userPersons.first, reference);
+      final result = await evaluate(userPersons.first, reference, onProgress: onProgress);
       return MultiPersonEvaluationResult(
         personResults: [result],
         overallScore: result.overallScore,
       );
     }
 
+    onProgress?.call('Matching persons...', 0.1);
     // Match persons by first-frame centroid proximity.
     final matching = _matchPersons(userPersons, refPersons);
 
     final results = <EvaluationResult>[];
-    for (final (userIdx, refIdx) in matching) {
+    for (var i = 0; i < matching.length; i++) {
+      final (userIdx, refIdx) = matching[i];
+      onProgress?.call(
+        'Evaluating person ${i + 1}/${matching.length}...',
+        0.2 + 0.7 * (i / matching.length),
+      );
       // Create a temporary single-person reference for each pair.
       final singleRef = ReferenceChoreography(
         id: reference.id,
@@ -199,6 +233,26 @@ class EvaluationService {
     final lh = frame.landmarks[PoseConstants.leftHip];
     final rh = frame.landmarks[PoseConstants.rightHip];
     return ((lh.x + rh.x) / 2, (lh.y + rh.y) / 2);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Confidence filtering
+  // ---------------------------------------------------------------------------
+
+  /// Drops frames whose average landmark visibility is below [_minConfidence].
+  PoseSequence _filterByConfidence(PoseSequence seq) {
+    if (_minConfidence <= 0) return seq;
+    final filtered = seq.frames.where((frame) {
+      if (frame.landmarks.isEmpty) return false;
+      final avgVis = frame.landmarks
+              .map((l) => l.visibility)
+              .reduce((a, b) => a + b) /
+          frame.landmarks.length;
+      return avgVis >= _minConfidence;
+    }).toList();
+    // If filtering removed everything, return original to avoid empty sequence.
+    if (filtered.isEmpty) return seq;
+    return PoseSequence(frames: filtered, fps: seq.fps, duration: seq.duration);
   }
 
   // ---------------------------------------------------------------------------

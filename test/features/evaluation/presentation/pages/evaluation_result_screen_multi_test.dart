@@ -205,10 +205,16 @@ void main() {
       ));
 
       // Scroll down to make the Home button visible.
-      await tester.scrollUntilVisible(find.text('Home'), 200);
-      await tester.tap(find.text('Home'));
+      final homeButton = find.widgetWithText(OutlinedButton, 'Home');
+      await tester.scrollUntilVisible(
+        homeButton,
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(homeButton);
       await tester.pumpAndSettle();
 
+      // After navigating, the home route renders Text('Home').
       expect(find.text('Home'), findsOneWidget);
     });
 
