@@ -165,6 +165,26 @@ void main() {
       expect(hipHop.first.id, 'hh');
     });
 
+    test('importAll adds new results and skips duplicates', () {
+      repo.save(_makeResult(id: 'existing', score: 60));
+
+      final imported = repo.importAll([
+        _makeResult(id: 'existing', score: 99), // duplicate — skip
+        _makeResult(id: 'new_one', score: 80),
+      ]);
+
+      expect(imported, 1);
+      final all = repo.listAll();
+      expect(all, hasLength(2));
+      // Original should be unchanged.
+      expect(all.firstWhere((r) => r.id == 'existing').overallScore, 60);
+      expect(all.firstWhere((r) => r.id == 'new_one').overallScore, 80);
+    });
+
+    test('importAll with empty list returns 0', () {
+      expect(repo.importAll([]), 0);
+    });
+
     test('skips corrupted entries', () {
       storage.save('good', jsonEncode(_makeResult().toJson()));
       storage.save('bad', '{invalid json!!!');

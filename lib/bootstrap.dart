@@ -20,6 +20,8 @@ import 'package:dance_evaluation/features/upload/domain/video_file_picker_factor
 import 'package:dance_evaluation/features/upload/domain/video_pose_extractor.dart';
 import 'package:dance_evaluation/features/upload/domain/video_pose_extractor_factory.dart';
 import 'package:dance_evaluation/features/upload/presentation/upload_controller.dart';
+import 'package:dance_evaluation/core/services/sharing_service.dart';
+import 'package:dance_evaluation/core/services/sharing_service_factory.dart';
 
 /// Application bootstrap: initialise services, then run the app.
 Future<void> bootstrap() async {
@@ -72,6 +74,7 @@ Future<void> bootstrap() async {
   sl.register<VideoFilePicker>(videoFilePicker);
   sl.register<VideoPoseExtractor>(videoPoseExtractor);
   sl.register<UploadController>(uploadController);
+  sl.register<SharingService>(createSharingService());
 
   runApp(const DanceEvalApp());
 }

@@ -54,6 +54,21 @@ class EvaluationHistoryRepository {
     return listAll().where((r) => r.style.name == styleName).toList();
   }
 
+  /// Imports results, skipping any whose ID already exists.
+  /// Returns the number of newly imported results.
+  int importAll(List<EvaluationResult> results) {
+    final existing = listAll().map((r) => r.id).toSet();
+    var imported = 0;
+    for (final result in results) {
+      if (!existing.contains(result.id)) {
+        _storage.save(result.id, jsonEncode(result.toJson()));
+        imported++;
+      }
+    }
+    if (imported > 0) _cache = null;
+    return imported;
+  }
+
   /// Deletes all evaluation history.
   void clearAll() {
     for (final result in listAll()) {
