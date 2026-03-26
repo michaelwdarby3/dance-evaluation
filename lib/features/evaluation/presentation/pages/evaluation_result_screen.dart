@@ -5,6 +5,8 @@ import 'package:dance_evaluation/core/models/evaluation_result.dart';
 import 'package:dance_evaluation/core/models/multi_evaluation_result.dart';
 import 'package:dance_evaluation/core/services/service_locator.dart';
 import 'package:dance_evaluation/features/capture/presentation/capture_controller.dart';
+import 'package:dance_evaluation/core/services/result_formatter.dart';
+import 'package:dance_evaluation/core/services/sharing_service.dart';
 import 'package:dance_evaluation/features/evaluation/presentation/widgets/dimension_bar.dart';
 import 'package:dance_evaluation/features/evaluation/presentation/widgets/score_indicator.dart';
 
@@ -38,6 +40,7 @@ class EvaluationResultScreen extends StatelessWidget {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Your Results'),
+          actions: _buildShareActions(context, result),
           bottom: TabBar(
             isScrollable: multi.personCount > 3,
             tabs: List.generate(
@@ -97,7 +100,10 @@ class EvaluationResultScreen extends StatelessWidget {
     EvaluationResult result,
   ) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Your Results')),
+      appBar: AppBar(
+        title: const Text('Your Results'),
+        actions: _buildShareActions(context, result),
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -355,6 +361,58 @@ class EvaluationResultScreen extends StatelessWidget {
         const SizedBox(height: 24),
       ],
     );
+  }
+
+  List<Widget> _buildShareActions(
+    BuildContext context,
+    EvaluationResult result,
+  ) {
+    return [
+      IconButton(
+        icon: const Icon(Icons.share),
+        tooltip: 'Share Results',
+        onPressed: () async {
+          final text = ResultFormatter.formatResultAsText(result);
+          try {
+            final sharing =
+                ServiceLocator.instance.get<SharingService>();
+            await sharing.shareText(text);
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Results shared')),
+              );
+            }
+          } catch (_) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Sharing not available')),
+              );
+            }
+          }
+        },
+      ),
+      IconButton(
+        icon: const Icon(Icons.download),
+        tooltip: 'Export JSON',
+        onPressed: () async {
+          final json = ResultFormatter.exportAllAsJson([result]);
+          try {
+            final sharing =
+                ServiceLocator.instance.get<SharingService>();
+            await sharing.saveJsonFile(
+              json,
+              'evaluation_${result.id}.json',
+            );
+          } catch (_) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Export not available')),
+              );
+            }
+          }
+        },
+      ),
+    ];
   }
 
   Widget _buildJointCard(JointFeedback jf) {

@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:dance_evaluation/core/models/evaluation_result.dart';
+import 'package:dance_evaluation/core/services/result_formatter.dart';
 import 'package:dance_evaluation/core/services/service_locator.dart';
+import 'package:dance_evaluation/core/services/sharing_service.dart';
 import 'package:dance_evaluation/data/evaluation_history_repository.dart';
 
 /// Shows evaluation history with a score trend chart and session list.
@@ -25,6 +27,53 @@ class _HistoryScreenState extends State<HistoryScreen> {
     _results = _repo.listAll();
   }
 
+  Future<void> _exportHistory() async {
+    final json = ResultFormatter.exportAllAsJson(_results);
+    try {
+      final sharing = ServiceLocator.instance.get<SharingService>();
+      await sharing.saveJsonFile(json, 'dance_evaluation_history.json');
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Export not available')),
+        );
+      }
+    }
+  }
+
+  Future<void> _importHistory() async {
+    try {
+      final sharing = ServiceLocator.instance.get<SharingService>();
+      final jsonStr = await sharing.pickJsonFile();
+      if (jsonStr == null) return;
+
+      final results = ResultFormatter.parseImportJson(jsonStr);
+      final imported = _repo.importAll(results);
+
+      setState(() {
+        _results = _repo.listAll();
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Imported $imported result(s)')),
+        );
+      }
+    } on FormatException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Invalid file: ${e.message}')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Import not available')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -36,6 +85,18 @@ class _HistoryScreenState extends State<HistoryScreen> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.go('/'),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.file_upload),
+            tooltip: 'Import',
+            onPressed: _importHistory,
+          ),
+          IconButton(
+            icon: const Icon(Icons.file_download),
+            tooltip: 'Export All',
+            onPressed: _results.isEmpty ? null : _exportHistory,
+          ),
+        ],
       ),
       body: _results.isEmpty
           ? Center(
