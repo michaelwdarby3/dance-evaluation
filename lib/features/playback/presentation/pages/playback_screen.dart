@@ -31,6 +31,8 @@ class _PlaybackScreenState extends State<PlaybackScreen> {
   String? _error;
   PoseFrame? _currentFrame;
   Timer? _overlayTimer;
+  double _playbackSpeed = 1.0;
+  static const _speeds = [0.25, 0.5, 1.0, 1.5, 2.0];
 
   @override
   void initState() {
@@ -181,8 +183,39 @@ class _PlaybackScreenState extends State<PlaybackScreen> {
           ),
 
           // Playback controls.
+          _buildSpeedSelector(),
           _buildControls(),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSpeedSelector() {
+    return Container(
+      color: const Color(0xFF1E1E2C),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: _speeds.map((speed) {
+          final isSelected = _playbackSpeed == speed;
+          final label = speed == 1.0 ? '1x' : '${speed}x';
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: ChoiceChip(
+              label: Text(label),
+              selected: isSelected,
+              onSelected: (_) {
+                setState(() => _playbackSpeed = speed);
+                _controller.setPlaybackSpeed(speed);
+              },
+              labelStyle: TextStyle(
+                fontSize: 12,
+                color: isSelected ? Colors.black87 : Colors.white70,
+              ),
+              visualDensity: VisualDensity.compact,
+            ),
+          );
+        }).toList(),
       ),
     );
   }

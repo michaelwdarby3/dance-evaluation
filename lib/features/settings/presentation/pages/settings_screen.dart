@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import 'package:dance_evaluation/core/services/service_locator.dart';
 import 'package:dance_evaluation/core/services/settings_service.dart';
@@ -95,6 +96,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onChanged: (v) => _settings.multiPersonDetection = v,
           ),
 
+          ListTile(
+            title: const Text('Confidence Threshold'),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Filter out low-confidence pose frames before evaluation'),
+                Slider(
+                  value: _settings.minConfidence,
+                  min: 0.0,
+                  max: 0.8,
+                  divisions: 8,
+                  label: '${(_settings.minConfidence * 100).round()}%',
+                  onChanged: (v) => _settings.minConfidence = v,
+                ),
+              ],
+            ),
+          ),
+
           // ------ Evaluation ------
           _sectionHeader('Evaluation'),
           _buildStylePicker(),
@@ -128,6 +147,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
             subtitle: const Text('Vibrate on countdown ticks and recording events'),
             value: _settings.hapticFeedback,
             onChanged: (v) => _settings.hapticFeedback = v,
+          ),
+
+          // ------ Help ------
+          _sectionHeader('Help'),
+          ListTile(
+            leading: const Icon(Icons.school),
+            title: const Text('Replay Tutorial'),
+            subtitle: const Text('View the onboarding walkthrough again'),
+            onTap: () {
+              _settings.hasSeenOnboarding = false;
+              context.go('/onboarding');
+            },
           ),
 
           // ------ Data ------

@@ -165,6 +165,30 @@ void main() {
       expect(hipHop.first.id, 'hh');
     });
 
+    test('listByReference filters correctly', () {
+      repo.save(_makeResult(id: 'a', referenceName: 'Hip Hop Basic'));
+      repo.save(_makeResult(id: 'b', referenceName: 'K-Pop Intro'));
+      repo.save(_makeResult(id: 'c', referenceName: 'Hip Hop Basic'));
+
+      final filtered = repo.listByReference('Hip Hop Basic');
+      expect(filtered, hasLength(2));
+      expect(filtered.every((r) => r.referenceName == 'Hip Hop Basic'), isTrue);
+    });
+
+    test('listByReference returns empty for no matches', () {
+      repo.save(_makeResult(id: 'a', referenceName: 'Hip Hop Basic'));
+      expect(repo.listByReference('Nonexistent'), isEmpty);
+    });
+
+    test('clearAll removes everything', () {
+      repo.save(_makeResult(id: 'a'));
+      repo.save(_makeResult(id: 'b'));
+      expect(repo.listAll(), hasLength(2));
+
+      repo.clearAll();
+      expect(repo.listAll(), isEmpty);
+    });
+
     test('importAll adds new results and skips duplicates', () {
       repo.save(_makeResult(id: 'existing', score: 60));
 

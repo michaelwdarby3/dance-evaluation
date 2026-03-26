@@ -12,21 +12,39 @@ import 'package:dance_evaluation/features/evaluation/domain/ai_coaching_service.
 import 'package:dance_evaluation/features/evaluation/domain/evaluation_service.dart';
 import 'package:dance_evaluation/features/evaluation/domain/feedback_generator.dart';
 import 'package:dance_evaluation/features/evaluation/presentation/pages/evaluation_result_screen.dart';
+import 'package:dance_evaluation/features/history/presentation/pages/history_detail_screen.dart';
 import 'package:dance_evaluation/features/history/presentation/pages/history_screen.dart';
 import 'package:dance_evaluation/features/home/presentation/pages/home_screen.dart';
 import 'package:dance_evaluation/features/playback/presentation/pages/playback_screen.dart';
 import 'package:dance_evaluation/data/evaluation_history_repository.dart';
 import 'package:dance_evaluation/features/references/presentation/pages/create_reference_screen.dart';
 import 'package:dance_evaluation/features/references/presentation/pages/reference_list_screen.dart';
+import 'package:dance_evaluation/features/onboarding/presentation/pages/onboarding_screen.dart';
 import 'package:dance_evaluation/features/settings/presentation/pages/settings_screen.dart';
 import 'package:dance_evaluation/features/upload/presentation/pages/upload_processing_screen.dart';
 
-final _router = GoRouter(
+GoRouter _createRouter() => GoRouter(
   initialLocation: '/',
+  redirect: (context, state) {
+    try {
+      final settings = ServiceLocator.instance.get<SettingsService>();
+      final isOnboarding = state.matchedLocation == '/onboarding';
+      if (!settings.hasSeenOnboarding && !isOnboarding) {
+        return '/onboarding';
+      }
+    } catch (_) {
+      // SettingsService may not be registered in tests.
+    }
+    return null;
+  },
   routes: [
     GoRoute(
       path: '/',
       builder: (context, state) => const HomeScreen(),
+    ),
+    GoRoute(
+      path: '/onboarding',
+      builder: (context, state) => const OnboardingScreen(),
     ),
     GoRoute(
       path: '/references/:mode',
@@ -79,6 +97,12 @@ final _router = GoRouter(
       builder: (context, state) => const HistoryScreen(),
     ),
     GoRoute(
+      path: '/history/:id',
+      builder: (context, state) => HistoryDetailScreen(
+        resultId: state.pathParameters['id'] ?? '',
+      ),
+    ),
+    GoRoute(
       path: '/settings',
       builder: (context, state) => const SettingsScreen(),
     ),
@@ -106,6 +130,8 @@ class _EvaluationLoaderState extends State<_EvaluationLoader> {
   EvaluationResult? _result;
   MultiPersonEvaluationResult? _multiResult;
   String? _error;
+  String _progressStage = 'Preparing...';
+  double _progressValue = 0.0;
 
   @override
   void initState() {
@@ -123,13 +149,28 @@ class _EvaluationLoaderState extends State<_EvaluationLoader> {
       final refKey = widget.referenceKey ?? 'hip_hop_basic.json';
       final reference = await referenceRepo.load(refKey);
 
+      // Apply confidence threshold from settings.
+      try {
+        final settings = sl.get<SettingsService>();
+        evaluationService.minConfidence = settings.minConfidence;
+      } catch (_) {}
+
       final historyRepo = sl.get<EvaluationHistoryRepository>();
+
+      void onProgress(String stage, double progress) {
+        if (mounted) {
+          setState(() {
+            _progressStage = stage;
+            _progressValue = progress;
+          });
+        }
+      }
 
       if (capture.isMultiPerson || reference.isMultiPerson) {
         // Multi-person evaluation path.
         final multiSequence = capture.getRecordedMultiSequence();
         final multiResult =
-            await evaluationService.evaluateMulti(multiSequence, reference);
+            await evaluationService.evaluateMulti(multiSequence, reference, onProgress: onProgress);
 
         if (multiResult.personResults.isEmpty) {
           throw StateError('Evaluation produced no person results');
@@ -162,7 +203,7 @@ class _EvaluationLoaderState extends State<_EvaluationLoader> {
         // Single-person evaluation path.
         final userSequence = capture.getRecordedSequence();
         var result =
-            await evaluationService.evaluate(userSequence, reference);
+            await evaluationService.evaluate(userSequence, reference, onProgress: onProgress);
 
         // Try AI-enhanced coaching (non-blocking — falls back to local).
         final aiCoaching = sl.get<AiCoachingService>();
@@ -246,8 +287,25 @@ class _EvaluationLoaderState extends State<_EvaluationLoader> {
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 24),
-                ElevatedButton(
+                ElevatedButton.icon(
+                  onPressed: () {
+                    setState(() {
+                      _error = null;
+                      _result = null;
+                      _multiResult = null;
+                    });
+                    _runEvaluation();
+                  },
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Try Again'),
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton(
                   onPressed: () => context.go('/'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white70,
+                    side: const BorderSide(color: Colors.white24),
+                  ),
                   child: const Text('Back to Home'),
                 ),
               ],
@@ -265,18 +323,36 @@ class _EvaluationLoaderState extends State<_EvaluationLoader> {
       );
     }
 
-    return const Scaffold(
+    return Scaffold(
       body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 24),
-            Text(
-              'Analyzing your dance...',
-              style: TextStyle(fontSize: 18, color: Colors.white70),
-            ),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 48),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 24),
+              Text(
+                _progressStage,
+                style: const TextStyle(fontSize: 18, color: Colors.white70),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: _progressValue,
+                  minHeight: 6,
+                  backgroundColor: Colors.white10,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '${(_progressValue * 100).round()}%',
+                style: const TextStyle(fontSize: 13, color: Colors.white38),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -294,7 +370,7 @@ class DanceEvalApp extends StatelessWidget {
     return MaterialApp.router(
       title: 'Dance Eval',
       debugShowCheckedModeBanner: false,
-      routerConfig: _router,
+      routerConfig: _createRouter(),
       theme: ThemeData(
         brightness: Brightness.dark,
         colorScheme: const ColorScheme.dark(

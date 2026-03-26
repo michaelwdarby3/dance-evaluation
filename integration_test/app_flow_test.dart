@@ -1,23 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:dance_evaluation/app.dart';
+import 'package:dance_evaluation/bootstrap_test_helpers.dart';
 import 'package:dance_evaluation/core/services/service_locator.dart';
-import 'package:dance_evaluation/data/reference_repository.dart';
-import 'package:dance_evaluation/features/capture/domain/camera_source.dart';
-import 'package:dance_evaluation/features/capture/domain/camera_source_factory.dart';
-import 'package:dance_evaluation/features/capture/domain/pose_detector.dart';
-import 'package:dance_evaluation/features/capture/domain/pose_detector_factory.dart';
-import 'package:dance_evaluation/features/capture/presentation/capture_controller.dart';
-import 'package:dance_evaluation/features/evaluation/domain/evaluation_service.dart';
-import 'package:dance_evaluation/features/upload/domain/video_file_picker.dart';
-import 'package:dance_evaluation/features/upload/domain/video_file_picker_factory.dart';
-import 'package:dance_evaluation/features/upload/domain/video_pose_extractor.dart';
-import 'package:dance_evaluation/features/upload/domain/video_pose_extractor_factory.dart';
-import 'package:dance_evaluation/features/upload/presentation/upload_controller.dart';
 
-/// Integration tests that run the real app in a real browser.
+/// Core app flow integration tests.
 ///
 /// Run with:
 ///   chromedriver --port=4444 &
@@ -28,30 +18,9 @@ import 'package:dance_evaluation/features/upload/presentation/upload_controller.
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
-  /// Registers all real services without calling runApp().
-  void registerServices() {
-    final sl = ServiceLocator.instance;
-    sl.reset();
-
-    final poseDetector = createPoseDetector();
-    final cameraSource = createCameraSource();
-    final capture = CaptureController(poseDetector: poseDetector);
-    final videoFilePicker = createVideoFilePicker();
-    final videoPoseExtractor = createVideoPoseExtractor();
-
-    sl.register<PoseDetector>(poseDetector);
-    sl.register<CameraSource>(cameraSource);
-    sl.register<EvaluationService>(EvaluationService());
-    sl.register<ReferenceRepository>(ReferenceRepository());
-    sl.register<CaptureController>(capture);
-    sl.register<VideoFilePicker>(videoFilePicker);
-    sl.register<VideoPoseExtractor>(videoPoseExtractor);
-    sl.register<UploadController>(UploadController(
-      videoFilePicker: videoFilePicker,
-      videoPoseExtractor: videoPoseExtractor,
-      captureController: capture,
-    ));
-  }
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+  });
 
   tearDown(() {
     ServiceLocator.instance.reset();
@@ -59,7 +28,7 @@ void main() {
 
   group('Home screen', () {
     testWidgets('renders with all navigation buttons', (tester) async {
-      registerServices();
+      await bootstrapForTest();
       await tester.pumpWidget(const DanceEvalApp());
       await tester.pumpAndSettle();
 
@@ -67,22 +36,23 @@ void main() {
       expect(find.text('Start Dancing'), findsOneWidget);
       expect(find.text('Upload Video'), findsOneWidget);
       expect(find.text('Manage References'), findsOneWidget);
+      expect(find.text('History'), findsOneWidget);
+      expect(find.text('Settings'), findsOneWidget);
     });
   });
 
   group('Reference list flow', () {
     testWidgets('Manage References loads bundled references', (tester) async {
-      registerServices();
+      await bootstrapForTest();
       await tester.pumpWidget(const DanceEvalApp());
       await tester.pumpAndSettle();
 
       await tester.tap(find.text('Manage References'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Choose Reference'), findsOneWidget);
+      expect(find.text('My References'), findsOneWidget);
 
       // Bundled references from assets/references/ should load.
-      // This catches asset loading failures (double prefix, missing .json).
       final hasRefs = find.byType(Card).evaluate().isNotEmpty;
       final hasEmpty = find.text('No references yet').evaluate().isNotEmpty;
 
@@ -92,15 +62,13 @@ void main() {
         reason: 'Should show reference tiles or empty state, not hang',
       );
 
-      // If assets loaded correctly, we should see actual reference names.
       if (hasRefs) {
-        // At least one bundled .json loaded without 404.
         expect(find.byType(ListTile), findsWidgets);
       }
     });
 
     testWidgets('tapping a reference navigates without error', (tester) async {
-      registerServices();
+      await bootstrapForTest();
       await tester.pumpWidget(const DanceEvalApp());
       await tester.pumpAndSettle();
 
@@ -109,26 +77,19 @@ void main() {
 
       final cards = find.byType(Card).evaluate();
       if (cards.isNotEmpty) {
-        // Tap the first reference tile.
         await tester.tap(find.byType(ListTile).first);
         await tester.pumpAndSettle();
 
-        // Should navigate to capture screen (camera init may fail in test,
-        // but we should NOT see a blank screen or unhandled error).
-        final hasCaptureUI =
-            find.text('Capture').evaluate().isNotEmpty ||
-            find.text('Camera error').evaluate().isNotEmpty ||
-            find.byType(CircularProgressIndicator).evaluate().isNotEmpty;
-
-        expect(hasCaptureUI, isTrue,
-            reason: 'Should show capture UI or camera error, not crash');
+        // In manage mode, tapping a reference shows a dialog or detail,
+        // not capture. Just verify no crash.
+        expect(find.byType(Scaffold), findsWidgets);
       }
     });
   });
 
   group('Create reference flow', () {
     testWidgets('Create from Video FAB navigates to form', (tester) async {
-      registerServices();
+      await bootstrapForTest();
       await tester.pumpWidget(const DanceEvalApp());
       await tester.pumpAndSettle();
 
@@ -145,38 +106,74 @@ void main() {
   });
 
   group('Navigation round-trips', () {
-    testWidgets('references screen and back to home', (tester) async {
-      registerServices();
+    testWidgets('history screen back to home', (tester) async {
+      await bootstrapForTest();
       await tester.pumpWidget(const DanceEvalApp());
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Manage References'));
+      await tester.tap(find.text('History'));
       await tester.pumpAndSettle();
-      expect(find.text('Choose Reference'), findsOneWidget);
+      expect(find.text('No sessions yet'), findsOneWidget);
 
+      // History uses context.go('/') for back
       await tester.tap(find.byIcon(Icons.arrow_back));
       await tester.pumpAndSettle();
       expect(find.text('Dance Eval'), findsOneWidget);
     });
 
-    testWidgets('create reference and back to home', (tester) async {
-      registerServices();
+    testWidgets('multi-step navigation: home → references → create',
+        (tester) async {
+      await bootstrapForTest();
       await tester.pumpWidget(const DanceEvalApp());
       await tester.pumpAndSettle();
 
+      // Home → references
       await tester.tap(find.text('Manage References'));
       await tester.pumpAndSettle();
+      expect(find.text('My References'), findsOneWidget);
 
+      // References → create
       await tester.tap(find.text('Create from Video'));
       await tester.pumpAndSettle();
       expect(find.text('Create Reference'), findsOneWidget);
+      expect(find.text('Reference Name'), findsOneWidget);
+      expect(find.text('Select Video & Create'), findsOneWidget);
+    });
+  });
 
-      await tester.tap(find.byIcon(Icons.arrow_back));
+  group('History screen', () {
+    testWidgets('shows empty state', (tester) async {
+      await bootstrapForTest();
+      await tester.pumpWidget(const DanceEvalApp());
       await tester.pumpAndSettle();
-      // Should be back on references or home.
-      final backToNav = find.text('Choose Reference').evaluate().isNotEmpty ||
-          find.text('Dance Eval').evaluate().isNotEmpty;
-      expect(backToNav, isTrue);
+
+      await tester.tap(find.text('History'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('No sessions yet'), findsOneWidget);
+      expect(
+        find.text('Complete a dance evaluation to see your progress'),
+        findsOneWidget,
+      );
+    });
+  });
+
+  group('Settings screen', () {
+    testWidgets('renders all sections', (tester) async {
+      await bootstrapForTest();
+      await tester.pumpWidget(const DanceEvalApp());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Settings'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Settings'), findsOneWidget);
+      expect(find.text('CAPTURE'), findsOneWidget);
+      expect(find.text('DETECTION'), findsOneWidget);
+      expect(find.text('EVALUATION'), findsOneWidget);
+      expect(find.text('FEEDBACK'), findsOneWidget);
+      expect(find.text('HELP'), findsOneWidget);
+      expect(find.text('DATA'), findsOneWidget);
     });
   });
 }

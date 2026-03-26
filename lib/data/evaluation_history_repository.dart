@@ -54,6 +54,11 @@ class EvaluationHistoryRepository {
     return listAll().where((r) => r.style.name == styleName).toList();
   }
 
+  /// Returns results filtered by reference name.
+  List<EvaluationResult> listByReference(String referenceName) {
+    return listAll().where((r) => r.referenceName == referenceName).toList();
+  }
+
   /// Imports results, skipping any whose ID already exists.
   /// Returns the number of newly imported results.
   int importAll(List<EvaluationResult> results) {

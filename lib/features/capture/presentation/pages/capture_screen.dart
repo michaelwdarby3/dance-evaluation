@@ -63,8 +63,16 @@ class _CaptureScreenState extends State<CaptureScreen>
       _settingsService = ServiceLocator.instance.get<SettingsService>();
       _audioService = ServiceLocator.instance.get<AudioService>();
       await _audioService!.prepare(ref);
-    } catch (_) {
-      // Reference/audio load failure shouldn't block capture.
+    } catch (e) {
+      // Reference/audio load failure shouldn't block capture, but inform user.
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not load reference: $e'),
+            backgroundColor: Colors.orange.shade800,
+          ),
+        );
+      }
     }
   }
 
@@ -232,10 +240,26 @@ class _CaptureScreenState extends State<CaptureScreen>
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
-            child: Text(
-              _errorMessage!,
-              style: const TextStyle(fontSize: 18, color: Colors.redAccent),
-              textAlign: TextAlign.center,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.videocam_off, size: 64, color: Colors.redAccent),
+                const SizedBox(height: 16),
+                Text(
+                  _errorMessage!,
+                  style: const TextStyle(fontSize: 18, color: Colors.redAccent),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    setState(() => _errorMessage = null);
+                    _initCamera();
+                  },
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Try Again'),
+                ),
+              ],
             ),
           ),
         ),

@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -29,6 +27,8 @@ class SettingsService extends ChangeNotifier {
   static const _kHapticFeedback = 'haptic_feedback';
   static const _kDefaultStyle = 'default_style';
   static const _kVideoRecording = 'video_recording';
+  static const _kHasSeenOnboarding = 'has_seen_onboarding';
+  static const _kMinConfidence = 'min_confidence';
 
   // ---------------------------------------------------------------------------
   // Defaults
@@ -174,6 +174,33 @@ class SettingsService extends ChangeNotifier {
       _prefs?.getBool(_kHapticFeedback) ?? defaultHapticFeedback;
   set hapticFeedback(bool v) {
     _prefs?.setBool(_kHapticFeedback, v);
+    notifyListeners();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Confidence filtering
+  // ---------------------------------------------------------------------------
+
+  static const double defaultMinConfidence = 0.3;
+
+  /// Minimum confidence threshold for pose frames (0.0 – 1.0).
+  /// Frames below this are dropped before evaluation.
+  double get minConfidence =>
+      _prefs?.getDouble(_kMinConfidence) ?? defaultMinConfidence;
+  set minConfidence(double v) {
+    _prefs?.setDouble(_kMinConfidence, v.clamp(0.0, 1.0));
+    notifyListeners();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Onboarding
+  // ---------------------------------------------------------------------------
+
+  /// Whether the user has completed the onboarding flow.
+  bool get hasSeenOnboarding =>
+      _prefs?.getBool(_kHasSeenOnboarding) ?? false;
+  set hasSeenOnboarding(bool v) {
+    _prefs?.setBool(_kHasSeenOnboarding, v);
     notifyListeners();
   }
 

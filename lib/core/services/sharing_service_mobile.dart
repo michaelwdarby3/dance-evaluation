@@ -11,7 +11,7 @@ SharingService createSharingService() => MobileSharingService();
 class MobileSharingService implements SharingService {
   @override
   Future<void> shareText(String text) async {
-    await SharePlus.instance.share(ShareParams(text: text));
+    await Share.share(text);
   }
 
   @override
@@ -20,8 +20,8 @@ class MobileSharingService implements SharingService {
     final file = File('${dir.path}/$fileName');
     await file.writeAsString(jsonString);
 
-    await SharePlus.instance.share(
-      ShareParams(files: [XFile(file.path, mimeType: 'application/json')]),
+    await Share.shareXFiles(
+      [XFile(file.path, mimeType: 'application/json')],
     );
   }
 

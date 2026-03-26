@@ -88,6 +88,7 @@ class DrillRecommendation {
     required this.targetJoint,
     required this.targetDimension,
     required this.priority,
+    this.description = '',
   });
 
   final String drillId;
@@ -98,12 +99,16 @@ class DrillRecommendation {
   /// Lower number = higher priority.
   final int priority;
 
+  /// Human-readable description of the drill exercise.
+  final String description;
+
   Map<String, dynamic> toJson() => {
         'drillId': drillId,
         'name': name,
         'targetJoint': targetJoint,
         'targetDimension': targetDimension.name,
         'priority': priority,
+        'description': description,
       };
 
   factory DrillRecommendation.fromJson(Map<String, dynamic> json) =>
@@ -115,6 +120,7 @@ class DrillRecommendation {
           (d) => d.name == json['targetDimension'],
         ),
         priority: json['priority'] as int,
+        description: json['description'] as String? ?? '',
       );
 
   @override
@@ -132,6 +138,7 @@ class EvaluationResult {
     required this.createdAt,
     required this.style,
     this.referenceName,
+    this.sessionName,
     this.timingInsights = const [],
     this.jointInsights = const [],
     this.coachingSummary,
@@ -157,6 +164,9 @@ class EvaluationResult {
   /// Name of the reference choreography used (for display in history).
   final String? referenceName;
 
+  /// Optional user-given name for this session.
+  final String? sessionName;
+
   /// Time-localized timing feedback strings.
   final List<String> timingInsights;
 
@@ -175,6 +185,7 @@ class EvaluationResult {
         'createdAt': createdAt.toIso8601String(),
         'style': style.name,
         'referenceName': referenceName,
+        'sessionName': sessionName,
         'timingInsights': timingInsights,
         'jointInsights': jointInsights,
         'coachingSummary': coachingSummary,
@@ -198,6 +209,7 @@ class EvaluationResult {
           (s) => s.name == json['style'],
         ),
         referenceName: json['referenceName'] as String?,
+        sessionName: json['sessionName'] as String?,
         timingInsights: (json['timingInsights'] as List?)
                 ?.cast<String>() ??
             const [],

@@ -125,5 +125,47 @@ void main() {
       await fresh.initialize();
       expect(fresh.isLoaded, true);
     });
+
+    test('hasSeenOnboarding defaults to false', () {
+      expect(settings.hasSeenOnboarding, false);
+    });
+
+    test('hasSeenOnboarding persists', () async {
+      settings.hasSeenOnboarding = true;
+
+      final settings2 = SettingsService();
+      await settings2.initialize();
+      expect(settings2.hasSeenOnboarding, true);
+    });
+
+    test('minConfidence defaults to 0.3', () {
+      expect(settings.minConfidence, 0.3);
+    });
+
+    test('minConfidence persists', () async {
+      settings.minConfidence = 0.5;
+
+      final settings2 = SettingsService();
+      await settings2.initialize();
+      expect(settings2.minConfidence, 0.5);
+    });
+
+    test('minConfidence clamps to 0-1 range', () {
+      settings.minConfidence = 1.5;
+      expect(settings.minConfidence, 1.0);
+
+      settings.minConfidence = -0.5;
+      expect(settings.minConfidence, 0.0);
+    });
+
+    test('resetAll clears hasSeenOnboarding and minConfidence', () async {
+      settings.hasSeenOnboarding = true;
+      settings.minConfidence = 0.8;
+
+      await settings.resetAll();
+
+      expect(settings.hasSeenOnboarding, false);
+      expect(settings.minConfidence, 0.3);
+    });
   });
 }

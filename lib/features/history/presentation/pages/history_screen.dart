@@ -19,12 +19,27 @@ class HistoryScreen extends StatefulWidget {
 class _HistoryScreenState extends State<HistoryScreen> {
   late final EvaluationHistoryRepository _repo;
   List<EvaluationResult> _results = [];
+  String? _styleFilter;
+  String? _referenceFilter;
 
   @override
   void initState() {
     super.initState();
     _repo = ServiceLocator.instance.get<EvaluationHistoryRepository>();
     _results = _repo.listAll();
+  }
+
+  List<EvaluationResult> get _filteredResults {
+    var results = _results;
+    if (_styleFilter != null) {
+      results = results.where((r) => r.style.name == _styleFilter).toList();
+    }
+    if (_referenceFilter != null) {
+      results = results
+          .where((r) => r.referenceName == _referenceFilter)
+          .toList();
+    }
+    return results;
   }
 
   Future<void> _exportHistory() async {
@@ -100,6 +115,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
       ),
       body: _results.isEmpty
           ? Center(
+
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -134,16 +150,65 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   _buildStats(theme),
                   const SizedBox(height: 24),
                 ],
+                _buildFilters(theme),
+                const SizedBox(height: 12),
                 Text(
-                  'Sessions',
+                  'Sessions (${_filteredResults.length})',
                   style: theme.textTheme.titleMedium?.copyWith(
                     color: Colors.white70,
                   ),
                 ),
                 const SizedBox(height: 12),
-                ..._results.map((r) => _buildSessionCard(r, theme)),
+                ..._filteredResults.map((r) => _buildSessionCard(r, theme)),
               ],
             ),
+    );
+  }
+
+  Widget _buildFilters(ThemeData theme) {
+    // Collect unique styles and reference names from results.
+    final styles = _results.map((r) => r.style.name).toSet().toList()..sort();
+    final refNames = _results
+        .where((r) => r.referenceName != null)
+        .map((r) => r.referenceName!)
+        .toSet()
+        .toList()
+      ..sort();
+
+    return Wrap(
+      spacing: 12,
+      runSpacing: 8,
+      children: [
+        DropdownButton<String?>(
+          value: _styleFilter,
+          hint: const Text('All Styles', style: TextStyle(color: Colors.white54)),
+          underline: const SizedBox.shrink(),
+          dropdownColor: const Color(0xFF1E1E2C),
+          items: [
+            const DropdownMenuItem(value: null, child: Text('All Styles')),
+            ...styles.map((s) => DropdownMenuItem(
+                  value: s,
+                  child: Text(s),
+                )),
+          ],
+          onChanged: (v) => setState(() => _styleFilter = v),
+        ),
+        if (refNames.length > 1)
+          DropdownButton<String?>(
+            value: _referenceFilter,
+            hint: const Text('All References', style: TextStyle(color: Colors.white54)),
+            underline: const SizedBox.shrink(),
+            dropdownColor: const Color(0xFF1E1E2C),
+            items: [
+              const DropdownMenuItem(value: null, child: Text('All References')),
+              ...refNames.map((n) => DropdownMenuItem(
+                    value: n,
+                    child: Text(n, overflow: TextOverflow.ellipsis),
+                  )),
+            ],
+            onChanged: (v) => setState(() => _referenceFilter = v),
+          ),
+      ],
     );
   }
 
@@ -313,6 +378,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
           });
         },
         child: ListTile(
+          onTap: () => context.push('/history/${result.id}'),
           leading: Container(
             width: 48,
             height: 48,
@@ -332,7 +398,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
             ),
           ),
           title: Text(
-            result.referenceName ?? result.style.name,
+            result.sessionName ?? result.referenceName ?? result.style.name,
             style: const TextStyle(color: Colors.white, fontSize: 15),
           ),
           subtitle: Text(
@@ -341,12 +407,16 @@ class _HistoryScreenState extends State<HistoryScreen> {
           ),
           trailing: Row(
             mainAxisSize: MainAxisSize.min,
-            children: result.dimensions.take(4).map((d) {
-              return Padding(
-                padding: const EdgeInsets.only(left: 6),
-                child: _DimensionDot(score: d.score),
-              );
-            }).toList(),
+            children: [
+              ...result.dimensions.take(4).map((d) {
+                return Padding(
+                  padding: const EdgeInsets.only(left: 6),
+                  child: _DimensionDot(score: d.score),
+                );
+              }),
+              const SizedBox(width: 8),
+              const Icon(Icons.chevron_right, color: Colors.white24, size: 20),
+            ],
           ),
         ),
       ),
