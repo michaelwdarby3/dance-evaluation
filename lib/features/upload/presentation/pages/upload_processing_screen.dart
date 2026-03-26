@@ -50,7 +50,7 @@ class _UploadProcessingScreenState extends State<UploadProcessingScreen> {
     if (_controller.state == UploadState.idle) {
       // User cancelled the file picker — go back.
       Future.microtask(() {
-        if (mounted) context.pop();
+        if (mounted) context.go('/');
       });
     }
   }
@@ -66,7 +66,7 @@ class _UploadProcessingScreenState extends State<UploadProcessingScreen> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
             _controller.reset();
-            context.pop();
+            context.go('/');
           },
         ),
       ),

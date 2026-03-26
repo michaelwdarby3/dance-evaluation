@@ -120,7 +120,7 @@ class _CreateReferenceScreenState extends State<CreateReferenceScreen> {
         title: const Text('Create Reference'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.pop(),
+          onPressed: () => context.go('/references/manage'),
         ),
       ),
       body: Center(

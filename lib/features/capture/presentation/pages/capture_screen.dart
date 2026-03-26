@@ -347,7 +347,7 @@ class _CaptureScreenState extends State<CaptureScreen>
                     icon: const Icon(Icons.arrow_back, color: Colors.white),
                     onPressed: () {
                       capture.reset();
-                      context.pop();
+                      context.go('/');
                     },
                   ),
                   const Spacer(),

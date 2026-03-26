@@ -49,7 +49,7 @@ class _ReferenceListScreenState extends State<ReferenceListScreen> {
         title: Text(widget.mode == 'manage' ? 'My References' : 'Choose Reference'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.pop(),
+          onPressed: () => context.go('/'),
         ),
       ),
       body: Column(

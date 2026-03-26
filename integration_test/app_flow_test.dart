@@ -121,6 +121,37 @@ void main() {
       expect(find.text('Dance Eval'), findsOneWidget);
     });
 
+    testWidgets('references screen back to home', (tester) async {
+      await bootstrapForTest();
+      await tester.pumpWidget(const DanceEvalApp());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Manage References'));
+      await tester.pumpAndSettle();
+      expect(find.text('My References'), findsOneWidget);
+
+      await tester.tap(find.byIcon(Icons.arrow_back));
+      await tester.pumpAndSettle();
+      expect(find.text('Dance Eval'), findsOneWidget);
+    });
+
+    testWidgets('create reference back to references', (tester) async {
+      await bootstrapForTest();
+      await tester.pumpWidget(const DanceEvalApp());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Manage References'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Create from Video'));
+      await tester.pumpAndSettle();
+      expect(find.text('Create Reference'), findsOneWidget);
+
+      await tester.tap(find.byIcon(Icons.arrow_back));
+      await tester.pumpAndSettle();
+      expect(find.text('My References'), findsOneWidget);
+    });
+
     testWidgets('multi-step navigation: home → references → create',
         (tester) async {
       await bootstrapForTest();
