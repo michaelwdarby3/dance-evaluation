@@ -9,20 +9,19 @@ import 'video_pose_extractor.dart';
 
 VideoPoseExtractor createVideoPoseExtractor() => WebVideoPoseExtractor();
 
-/// JS interop for pose_bridge.js detectPoseAtTime.
-@JS('poseBridge.detectPoseAtTime')
-external JSPromise<JSAny?> _jsDetectPoseAtTime(
-    web.HTMLVideoElement video, JSNumber timestampMs);
+/// JS interop for pose_bridge.js — use extension type to preserve `this`.
+@JS('poseBridge')
+external _PoseBridge? get _poseBridge;
 
-@JS('poseBridge.detectMultiPoseAtTime')
-external JSPromise<JSAny?> _jsDetectMultiPoseAtTime(
-    web.HTMLVideoElement video, JSNumber timestampMs);
+extension type _PoseBridge._(JSObject _) implements JSObject {
+  external JSBoolean isReady();
+  external JSAny? detectPoseAtTime(
+      web.HTMLVideoElement video, JSNumber timestampMs);
+  external JSAny? detectMultiPoseAtTime(
+      web.HTMLVideoElement video, JSNumber timestampMs);
+  external JSAny? getLastError();
+}
 
-@JS('poseBridge.isReady')
-external JSFunction? get _isReadyFn;
-
-@JS()
-@anonymous
 extension type _JsLandmark._(JSObject _) implements JSObject {
   external JSNumber get x;
   external JSNumber get y;
@@ -73,7 +72,7 @@ class WebVideoPoseExtractor implements VideoPoseExtractor {
       // Run pose detection at this frame.
       final timestampMs = (currentTime * 1000).roundToDouble();
       final resultJs =
-          await _jsDetectPoseAtTime(video, timestampMs.toJS).toDart;
+          _poseBridge!.detectPoseAtTime(video, timestampMs.toJS);
 
       if (resultJs != null) {
         final landmarksJs = resultJs as JSArray;
@@ -108,10 +107,8 @@ class WebVideoPoseExtractor implements VideoPoseExtractor {
 
   Future<void> _waitForBridge() async {
     for (var i = 0; i < 100; i++) {
-      if (_isReadyFn != null) {
-        final ready = (_isReadyFn!).callAsFunction() as JSBoolean;
-        if (ready.toDart) return;
-      }
+      final bridge = _poseBridge;
+      if (bridge != null && bridge.isReady().toDart) return;
       await Future.delayed(const Duration(milliseconds: 100));
     }
     throw Exception('MediaPipe Pose JS bridge failed to initialize');
@@ -163,7 +160,7 @@ class WebVideoPoseExtractor implements VideoPoseExtractor {
 
       final timestampMs = (currentTime * 1000).roundToDouble();
       final resultJs =
-          await _jsDetectMultiPoseAtTime(video, timestampMs.toJS).toDart;
+          _poseBridge!.detectMultiPoseAtTime(video, timestampMs.toJS);
 
       if (resultJs != null) {
         final personsJs = resultJs as JSArray;

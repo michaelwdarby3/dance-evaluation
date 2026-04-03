@@ -26,11 +26,13 @@ Feature-based organization under `lib/features/`. Each feature has `domain/` (se
 | Feature | Purpose |
 |---------|---------|
 | `capture` | Live camera pose detection with skeleton overlay, countdown, recording |
-| `evaluation` | DTW scoring pipeline, feedback generation, AI coaching, result display |
-| `history` | Score trend chart, session list with swipe-to-delete |
+| `evaluation` | DTW scoring pipeline, feedback generation, drill recommendations, AI coaching, result display |
+| `history` | Score trend chart, session list with swipe-to-delete, detail view per result |
 | `home` | Landing screen with navigation to all flows |
+| `onboarding` | First-launch walkthrough, redirects until completed |
 | `playback` | Video playback with synchronized skeleton overlay |
 | `references` | Browse/select/create/delete reference choreographies |
+| `settings` | Persistent settings: skeleton overlay, ghost opacity, multi-person, haptics, mirror, AI coaching, confidence threshold |
 | `upload` | Pick video file, extract poses frame-by-frame, process for evaluation |
 
 ### Key Patterns
@@ -45,6 +47,7 @@ Feature-based organization under `lib/features/`. Each feature has `domain/` (se
 | Path | Screen |
 |------|--------|
 | `/` | Home |
+| `/onboarding` | First-launch walkthrough (auto-redirect if not seen) |
 | `/references/:mode` | Reference list (mode: `capture`, `upload`, or `manage`) |
 | `/create-reference` | Create custom reference from video |
 | `/capture?ref=` | Live capture with camera |
@@ -52,20 +55,23 @@ Feature-based organization under `lib/features/`. Each feature has `domain/` (se
 | `/evaluation/:id?ref=` | Run evaluation pipeline, show results |
 | `/playback` | Video playback with skeleton overlay |
 | `/history` | Score history and trends |
+| `/history/:id` | Detail view for a single evaluation result |
+| `/settings` | App settings |
 
 ### Service Locator Registration (bootstrap.dart)
 
-`PoseDetector`, `CameraSource`, `EvaluationService`, `ReferenceRepository`, `CaptureController`, `VideoFilePicker`, `VideoPoseExtractor`, `UploadController`, `AudioService`, `AiCoachingService`, `EvaluationHistoryRepository`
+`PoseDetector`, `CameraSource`, `EvaluationService`, `ReferenceRepository`, `CaptureController`, `VideoFilePicker`, `VideoPoseExtractor`, `UploadController`, `AudioService`, `AiCoachingService`, `EvaluationHistoryRepository`, `SettingsService`, `SharingService`
 
 ### Evaluation Pipeline
 
 1. Capture/upload produces a `PoseSequence` (list of 33-landmark `PoseFrame`s)
-2. `EvaluationService.evaluate()` normalizes sequences, runs DTW alignment
+2. `EvaluationService.evaluate()` normalizes sequences, runs DTW alignment (reports progress via callback)
 3. Scores 4 dimensions: timing, technique, expression, spatial awareness
 4. Style-specific weights produce overall score (0-100)
 5. `FeedbackGenerator` analyzes DTW warping path for time-localized timing insights and direction-aware joint corrections
-6. Optional `AiCoachingService` enhances feedback via Claude API
-7. Results persisted via `EvaluationHistoryRepository`
+6. `DrillCatalog` recommends targeted practice drills based on joint, dimension, and score range
+7. Optional `AiCoachingService` enhances feedback via Claude API (gated by `SettingsService.aiCoaching`)
+8. Results persisted via `EvaluationHistoryRepository`
 
 ### Multi-Person Support
 
@@ -94,14 +100,27 @@ Each platform service uses a factory pattern with conditional exports:
 - **Evaluation history**: `EvaluationStorage` with platform-specific persistence
 - **Video path**: held in `CaptureController.videoPath` during session (not persisted)
 
+### Sharing & Export
+
+`SharingService` (platform-conditional factory like other services) formats evaluation results via `ResultFormatter` and shares as text. Mobile uses `share_plus`, web uses Web Share API with clipboard fallback.
+
+### Settings Persistence
+
+`SettingsService` wraps `SharedPreferences` with `ChangeNotifier`. All settings have defaults and persist across sessions. Includes: audio, skeleton overlay, ghost opacity, countdown duration, recording duration, multi-person detection, AI coaching + API key, mirror preview, haptics, video recording, confidence threshold, onboarding-seen flag.
+
 ## Running
 
 ```bash
 make setup          # Install all deps (Flutter + server + tools)
 make run-web        # Run in Chrome
 make run-android    # Build, install, launch on emulator
-make test           # Run all Flutter tests
+make test           # Run all Flutter unit & widget tests
+make test-integration-web      # Run web integration tests (single file)
+make test-integration-web-all  # Run ALL web integration tests
+make test-integration-android  # Run integration tests on Android emulator
 make build-apk      # Build Android debug APK
+make lint           # flutter analyze
+make format         # dart format
 ```
 
 Flutter CLI required. No backend needed — all evaluation runs on-device.
@@ -160,6 +179,17 @@ make extract-ref VIDEO=path/to/video.mp4 OUTPUT=assets/references/my_ref.json
 # Generate test dance videos (requires GPU + ModelScope)
 cd tools && python generate_dance_video.py
 ```
+
+## Testing
+
+- **Unit/widget tests**: `make test` — in `test/` mirroring `lib/` structure
+- **Integration tests**: `make test-integration-web-all` — in `integration_test/` (app flow, evaluation flow, history, onboarding, settings)
+- **Shared test fakes**: `integration_test/shared/test_fakes.dart` and `lib/bootstrap_test_helpers.dart` for wiring fakes into the service locator
+- **Android smoke test**: `bash tools/android_smoke_test.sh` — 11 automated tests with screenshots
+
+### Integration Test Environment (WSL2)
+
+Web integration tests require `CHROME_EXECUTABLE` set to `~/bin/google-chrome-nosandbox` (the test runner script does this automatically). This wrapper enables SwiftShader WebGL (needed for MediaPipe WASM) and strips `--disable-gpu` that Flutter's headless Chrome launcher adds. The evaluation flow test uses **real MediaPipe pose extraction** (not faked) — only the file dialog is bypassed via `AssetVideoFilePicker`.
 
 ## Current Status
 

@@ -10,15 +10,15 @@ import 'pose_detector.dart';
 /// Creates the web (MediaPipe JS) pose detector.
 PoseDetector createPoseDetector() => WebPoseDetector();
 
-/// JS interop bindings for the pose bridge in web/pose_bridge.js.
-@JS('poseBridge.isReady')
-external JSFunction? get _isReadyFn;
+/// JS interop for pose_bridge.js — use extension type to preserve `this`.
+@JS('poseBridge')
+external _PoseBridge? get _poseBridge;
 
-@JS('poseBridge.detectPose')
-external JSPromise<JSAny?> _jsDetectPose(web.HTMLVideoElement video);
-
-@JS('poseBridge.detectMultiPose')
-external JSPromise<JSAny?> _jsDetectMultiPose(web.HTMLVideoElement video);
+extension type _PoseBridge._(JSObject _) implements JSObject {
+  external JSBoolean isReady();
+  external JSAny? detectPose(web.HTMLVideoElement video);
+  external JSAny? detectMultiPose(web.HTMLVideoElement video);
+}
 
 class WebPoseDetector implements PoseDetector {
   bool _disposed = false;
@@ -26,10 +26,8 @@ class WebPoseDetector implements PoseDetector {
   Future<void> _waitForBridge() async {
     // Wait up to 10 seconds for the JS bridge to initialise.
     for (var i = 0; i < 100; i++) {
-      if (_isReadyFn != null) {
-        final ready = (_isReadyFn!).callAsFunction() as JSBoolean;
-        if (ready.toDart) return;
-      }
+      final bridge = _poseBridge;
+      if (bridge != null && bridge.isReady().toDart) return;
       await Future.delayed(const Duration(milliseconds: 100));
     }
     throw Exception('MediaPipe Pose JS bridge failed to initialize');
@@ -42,7 +40,7 @@ class WebPoseDetector implements PoseDetector {
     await _waitForBridge();
 
     final video = input.platformData as web.HTMLVideoElement;
-    final resultJs = await _jsDetectPose(video).toDart;
+    final resultJs = _poseBridge!.detectPose(video);
     if (resultJs == null) return null;
 
     final landmarksJs = resultJs as JSArray;
@@ -69,7 +67,7 @@ class WebPoseDetector implements PoseDetector {
     await _waitForBridge();
 
     final video = input.platformData as web.HTMLVideoElement;
-    final resultJs = await _jsDetectMultiPose(video).toDart;
+    final resultJs = _poseBridge!.detectMultiPose(video);
     if (resultJs == null) return [];
 
     final personsJs = resultJs as JSArray;

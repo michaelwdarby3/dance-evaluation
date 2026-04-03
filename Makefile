@@ -70,30 +70,13 @@ test:
 test-file:
 	$(FLUTTER) test $(FILE)
 
-## Run web integration tests (starts chromedriver automatically)
+## Run web integration tests (single file)
 test-integration-web:
-	chromedriver --port=4444 & \
-	sleep 2; \
-	$(FLUTTER) drive \
-		--driver=test_driver/integration_test.dart \
-		--target=integration_test/app_flow_test.dart \
-		-d chrome \
-		--chrome-binary=$$(which google-chrome-nosandbox 2>/dev/null || echo google-chrome); \
-	STATUS=$$?; kill %1 2>/dev/null; exit $$STATUS
+	bash scripts/run-integration-tests.sh integration_test/app_flow_test.dart
 
 ## Run ALL web integration tests
 test-integration-web-all:
-	chromedriver --port=4444 & \
-	sleep 2; \
-	CHROME=$$(which google-chrome-nosandbox 2>/dev/null || echo google-chrome); \
-	for f in integration_test/*_test.dart; do \
-		pkill -f "chrome" 2>/dev/null; sleep 2; \
-		$(FLUTTER) drive \
-			--driver=test_driver/integration_test.dart \
-			--target=$$f \
-			-d chrome \
-			--chrome-binary=$$CHROME || { kill %1 2>/dev/null; exit 1; }; \
-	done; kill %1 2>/dev/null
+	bash scripts/run-integration-tests.sh
 
 ## Run integration tests on Android emulator (must be running)
 test-integration-android:

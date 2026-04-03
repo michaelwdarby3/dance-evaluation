@@ -5,6 +5,7 @@ const poseBridge = {
   _landmarker: null,
   _ready: false,
   _initializing: false,
+  _lastError: null,
 
   isReady() {
     return this._ready;
@@ -23,7 +24,7 @@ const poseBridge = {
         "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.18/wasm"
       );
 
-      this._landmarker = await PoseLandmarker.createFromOptions(vision, {
+      const modelOptions = {
         baseOptions: {
           modelAssetPath:
             "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",
@@ -31,10 +32,25 @@ const poseBridge = {
         },
         runningMode: "VIDEO",
         numPoses: 5,
-      });
+      };
+
+      try {
+        this._landmarker = await PoseLandmarker.createFromOptions(
+          vision,
+          modelOptions
+        );
+        console.log("MediaPipe Pose Landmarker initialized (GPU)");
+      } catch (gpuError) {
+        console.warn("GPU delegate failed, falling back to CPU:", gpuError);
+        modelOptions.baseOptions.delegate = "CPU";
+        this._landmarker = await PoseLandmarker.createFromOptions(
+          vision,
+          modelOptions
+        );
+        console.log("MediaPipe Pose Landmarker initialized (CPU)");
+      }
 
       this._ready = true;
-      console.log("MediaPipe Pose Landmarker initialized");
     } catch (e) {
       console.error("Failed to initialize MediaPipe Pose:", e);
       this._initializing = false;
@@ -171,9 +187,14 @@ const poseBridge = {
         }))
       );
     } catch (e) {
+      this._lastError = `${e} | readyState=${videoElement.readyState} ts=${timestampMs} w=${videoElement.videoWidth} h=${videoElement.videoHeight}`;
       console.error("Multi-pose detection (at time) error:", e);
       return null;
     }
+  },
+
+  getLastError() {
+    return this._lastError;
   },
 };
 
