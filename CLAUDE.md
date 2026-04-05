@@ -13,8 +13,9 @@ tools/               Python utilities for reference extraction & video generatio
 scripts/             Shell scripts (Android emulator management, setup, dev)
 web/                 Web assets (index.html, pose_bridge.js for MediaPipe interop)
 android/             Android native config (package: com.danceval.dance_evaluation)
-assets/references/   6 built-in reference choreographies (JSON)
-assets/test_videos/  Test videos for reference generation
+assets/references/        8 built-in reference choreographies (JSON, including 2 extended 16s routines)
+assets/reference_videos/  Generated dance videos per reference (gitignored, created by tools/)
+assets/test_videos/       Test videos for reference generation
 ```
 
 ## Flutter Architecture
@@ -25,13 +26,13 @@ Feature-based organization under `lib/features/`. Each feature has `domain/` (se
 
 | Feature | Purpose |
 |---------|---------|
-| `capture` | Live camera pose detection with skeleton overlay, countdown, recording |
+| `capture` | Live camera pose detection with skeleton overlay, countdown, recording, inline settings panel, auto-stop after reference ends |
 | `evaluation` | DTW scoring pipeline, feedback generation, drill recommendations, AI coaching, result display |
 | `history` | Score trend chart, session list with swipe-to-delete, detail view per result |
 | `home` | Landing screen with navigation to all flows |
 | `onboarding` | First-launch walkthrough, redirects until completed |
 | `playback` | Video playback with synchronized skeleton overlay |
-| `references` | Browse/select/create/delete reference choreographies |
+| `references` | Browse/select/create/delete reference choreographies; animated skeleton previews on cards |
 | `settings` | Persistent settings: skeleton overlay, ghost opacity, multi-person, haptics, mirror, AI coaching, confidence threshold |
 | `upload` | Pick video file, extract poses frame-by-frame, process for evaluation |
 
@@ -106,7 +107,7 @@ Each platform service uses a factory pattern with conditional exports:
 
 ### Settings Persistence
 
-`SettingsService` wraps `SharedPreferences` with `ChangeNotifier`. All settings have defaults and persist across sessions. Includes: audio, skeleton overlay, ghost opacity, countdown duration, recording duration, multi-person detection, AI coaching + API key, mirror preview, haptics, video recording, confidence threshold, onboarding-seen flag.
+`SettingsService` wraps `SharedPreferences` with `ChangeNotifier`. All settings have defaults and persist across sessions. Includes: audio, skeleton overlay, ghost opacity, countdown duration, recording duration, multi-person detection, AI coaching + API key, mirror video (default off), mirror skeleton (default off), haptics, video recording, confidence threshold, onboarding-seen flag. All settings are also accessible via an inline expandable panel on the capture screen (grouped into Display, Recording, Detection, Feedback).
 
 ## Running
 
@@ -176,9 +177,26 @@ make deploy-infra GCP_PROJECT=your-project-id
 # Extract reference choreography from a video
 make extract-ref VIDEO=path/to/video.mp4 OUTPUT=assets/references/my_ref.json
 
+# Generate longer reference choreographies (requires scipy, numpy)
+cd tools && . .venv/bin/activate && python generate_long_reference.py
+
 # Generate test dance videos (requires GPU + ModelScope)
 cd tools && python generate_dance_video.py
+
+# Generate AI dance videos from reference choreographies (ControlNet + AnimateDiff, GPU required)
+make generate-videos              # All references (~20-30 min each on RTX 3070)
+make generate-videos-skeleton     # Skeleton-only fallback (no GPU needed)
+make generate-video REF=assets/references/hip_hop_basic.json  # Single reference
 ```
+
+### Reference Video Generation
+
+`tools/generate_reference_videos.py` generates realistic dance videos conditioned on skeleton pose sequences using ControlNet (OpenPose) + AnimateDiff. `tools/openpose_renderer.py` handles BlazePose→OpenPose 25-keypoint conversion and canonical colored skeleton rendering.
+
+- **AI mode**: Requires RTX 3070+ (8GB VRAM). Generates in 16-frame chunks with 4-frame overlap for long references.
+- **Skeleton-only mode** (`--skeleton-only`): Renders colored OpenPose skeletons to MP4 without GPU.
+- Output: `assets/reference_videos/{reference_id}.mp4` (gitignored). The Flutter app auto-discovers these and shows a play button on reference cards.
+- **VRAM optimizations** (for 8GB GPUs): xformers attention, tiled VAE, VAE slicing, model CPU offload, 8-bit ControlNet quantization via bitsandbytes. All optimizations are marked with `VRAM NOTE` comments — search the code to see what to remove/relax when upgrading to 24GB+ GPU or cloud A100/H100.
 
 ## Testing
 
@@ -198,8 +216,10 @@ Web integration tests require `CHROME_EXECUTABLE` set to `~/bin/google-chrome-no
 - Video upload with frame-by-frame pose extraction
 - DTW-based evaluation with 4-dimension scoring
 - Rich verbal feedback (timing insights, joint corrections, coaching summary)
-- 6 built-in reference choreographies (hip-hop, K-pop, R&B at various difficulties)
-- Custom reference creation from user videos
+- 8 built-in reference choreographies (hip-hop, K-pop, R&B at various difficulties, including 2 extended 16s routines)
+- Auto-stop recording 1.5s after reference choreography ends, with automatic navigation to results
+- Animated skeleton previews on reference selection cards
+- Custom reference creation from camera recording or video upload
 - Score history with trend charts
 - Video playback with skeleton overlay
 - Audio playback during capture

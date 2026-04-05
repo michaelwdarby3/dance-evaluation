@@ -22,7 +22,8 @@ setup-server:
 setup-tools:
 	cd tools && python3 -m venv .venv && \
 		. .venv/bin/activate && \
-		$(PIP) install mediapipe opencv-python-headless numpy
+		$(PIP) install mediapipe opencv-python-headless numpy && \
+		$(PIP) install xformers bitsandbytes || true
 
 # ---------------------------------------------------------------------------
 # Run
@@ -34,7 +35,7 @@ run:
 
 ## Run Flutter app in Chrome
 run-web:
-	$(FLUTTER) run -d chrome
+	$(FLUTTER) run -d web-server --web-port=8085
 
 ## Run on Android emulator (builds, installs, and launches)
 run-android:
@@ -149,6 +150,22 @@ deploy-infra:
 # ---------------------------------------------------------------------------
 # Tools
 # ---------------------------------------------------------------------------
+
+## Generate AI dance videos for all references (GPU required)
+generate-videos:
+	cd tools && . .venv/bin/activate && \
+		python generate_reference_videos.py --all
+
+## Generate skeleton-only videos for all references (no GPU needed)
+generate-videos-skeleton:
+	cd tools && . .venv/bin/activate && \
+		python generate_reference_videos.py --all --skeleton-only
+
+## Generate video for a single reference (usage: make generate-video REF=assets/references/hip_hop_basic.json)
+generate-video:
+	@test -n "$(REF)" || (echo "Usage: make generate-video REF=assets/references/hip_hop_basic.json" && exit 1)
+	cd tools && . .venv/bin/activate && \
+		python generate_reference_videos.py -r "../$(REF)"
 
 ## Extract reference from a video (usage: make extract-ref VIDEO=path/to/video.mp4 OUTPUT=assets/references/my_ref.json)
 extract-ref:

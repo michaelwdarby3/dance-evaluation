@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:go_router/go_router.dart';
+import 'package:video_player/video_player.dart';
 
 import 'package:dance_evaluation/core/models/reference_choreography.dart';
 import 'package:dance_evaluation/core/services/service_locator.dart';
+import 'package:dance_evaluation/core/services/settings_service.dart';
 import 'package:dance_evaluation/data/reference_repository.dart';
+import 'package:dance_evaluation/features/references/presentation/widgets/skeleton_preview_widget.dart';
 
 /// Shows available reference choreographies and lets the user pick one
 /// to evaluate against, or create a new one from a video upload.
@@ -23,6 +27,7 @@ class _ReferenceListScreenState extends State<ReferenceListScreen> {
   List<ReferenceChoreography>? _references;
   String? _error;
   String _difficultyFilter = 'All';
+  final Set<String> _availableVideos = {};
 
   @override
   void initState() {
@@ -34,9 +39,24 @@ class _ReferenceListScreenState extends State<ReferenceListScreen> {
     try {
       final repo = ServiceLocator.instance.get<ReferenceRepository>();
       final refs = await repo.listAll();
-      if (mounted) setState(() => _references = refs);
+      if (mounted) {
+        setState(() => _references = refs);
+        _checkVideoAssets(refs);
+      }
     } catch (e) {
       if (mounted) setState(() => _error = e.toString());
+    }
+  }
+
+  Future<void> _checkVideoAssets(List<ReferenceChoreography> refs) async {
+    for (final ref in refs) {
+      final assetPath = 'assets/reference_videos/${ref.id}.mp4';
+      try {
+        await rootBundle.load(assetPath);
+        if (mounted) setState(() => _availableVideos.add(ref.id));
+      } catch (_) {
+        // Asset doesn't exist — no video available
+      }
     }
   }
 
@@ -237,9 +257,14 @@ class _ReferenceListScreenState extends State<ReferenceListScreen> {
       itemCount: filtered.length,
       itemBuilder: (context, index) {
         final ref = filtered[index];
+        final mirror = ServiceLocator.instance
+            .get<SettingsService>()
+            .mirrorSkeleton;
         return _ReferenceTile(
           reference: ref,
           mode: widget.mode,
+          mirrorSkeleton: mirror,
+          hasVideo: _availableVideos.contains(ref.id),
           onTap: () {
             if (widget.mode == 'capture') {
               context.go('/capture?ref=${ref.id}');
@@ -260,11 +285,15 @@ class _ReferenceTile extends StatelessWidget {
     required this.reference,
     required this.onTap,
     this.mode = 'capture',
+    this.mirrorSkeleton = false,
+    this.hasVideo = false,
   });
 
   final ReferenceChoreography reference;
   final VoidCallback onTap;
   final String mode;
+  final bool mirrorSkeleton;
+  final bool hasVideo;
 
   @override
   Widget build(BuildContext context) {
@@ -277,33 +306,122 @@ class _ReferenceTile extends StatelessWidget {
       color: theme.colorScheme.surface,
       child: ListTile(
         onTap: onTap,
-        leading: Icon(
-          _styleIcon(reference.style.name),
-          color: theme.colorScheme.primary,
-          size: 36,
+        leading: SkeletonPreviewWidget(
+          poses: reference.poses,
+          size: const Size(56, 56),
+          label: reference.name,
+          mirror: mirrorSkeleton,
         ),
         title: Text(reference.name),
         subtitle: Text(
           '${reference.style.name} · ${reference.difficulty} · '
           '${durationSec.toStringAsFixed(1)}s · $frameCount frames',
         ),
-        trailing: Icon(
-          mode == 'manage' ? Icons.info_outline : Icons.chevron_right,
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (hasVideo)
+              IconButton(
+                icon: const Icon(Icons.play_circle_outline),
+                tooltip: 'Preview video',
+                onPressed: () => _showVideoDialog(context),
+              ),
+            Icon(
+              mode == 'manage' ? Icons.info_outline : Icons.chevron_right,
+            ),
+          ],
         ),
       ),
     );
   }
 
-  IconData _styleIcon(String style) {
-    switch (style) {
-      case 'hipHop':
-        return Icons.music_note;
-      case 'kPop':
-        return Icons.star;
-      case 'contemporary':
-        return Icons.water_drop;
-      default:
-        return Icons.directions_run;
-    }
+  void _showVideoDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => _VideoPreviewDialog(referenceId: reference.id, name: reference.name),
+    );
+  }
+}
+
+class _VideoPreviewDialog extends StatefulWidget {
+  const _VideoPreviewDialog({required this.referenceId, required this.name});
+
+  final String referenceId;
+  final String name;
+
+  @override
+  State<_VideoPreviewDialog> createState() => _VideoPreviewDialogState();
+}
+
+class _VideoPreviewDialogState extends State<_VideoPreviewDialog> {
+  late VideoPlayerController _controller;
+  bool _initialized = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = VideoPlayerController.asset(
+      'assets/reference_videos/${widget.referenceId}.mp4',
+    );
+    _controller.initialize().then((_) {
+      if (mounted) {
+        setState(() => _initialized = true);
+        _controller.setLooping(true);
+        _controller.play();
+      }
+    }).catchError((e) {
+      if (mounted) setState(() => _error = e.toString());
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.black,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    widget.name,
+                    style: const TextStyle(color: Colors.white, fontSize: 16),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close, color: Colors.white70),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+          ),
+          if (_error != null)
+            Padding(
+              padding: const EdgeInsets.all(24),
+              child: Text(_error!, style: const TextStyle(color: Colors.redAccent)),
+            )
+          else if (!_initialized)
+            const Padding(
+              padding: EdgeInsets.all(48),
+              child: CircularProgressIndicator(),
+            )
+          else
+            AspectRatio(
+              aspectRatio: _controller.value.aspectRatio,
+              child: VideoPlayer(_controller),
+            ),
+        ],
+      ),
+    );
   }
 }

@@ -69,4 +69,5 @@ flutter:
 
   assets:
     - assets/references/
+    - assets/reference_videos/
     - assets/test_videos/

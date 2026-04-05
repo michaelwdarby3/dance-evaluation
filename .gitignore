@@ -12,6 +12,9 @@ tools/.cache/
 # Downloaded stock footage (re-downloadable via generate_references.py)
 assets/test_videos/multi_person/
 
+# Generated reference videos (re-generatable via generate_reference_videos.py)
+assets/reference_videos/
+
 # Miscellaneous
 *.class
 *.log
