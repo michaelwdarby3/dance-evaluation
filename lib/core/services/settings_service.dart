@@ -24,6 +24,7 @@ class SettingsService extends ChangeNotifier {
   static const _kAiCoaching = 'ai_coaching';
   static const _kAiApiKey = 'ai_api_key';
   static const _kMirrorPreview = 'mirror_preview';
+  static const _kMirrorSkeleton = 'mirror_skeleton';
   static const _kHapticFeedback = 'haptic_feedback';
   static const _kDefaultStyle = 'default_style';
   static const _kVideoRecording = 'video_recording';
@@ -42,7 +43,8 @@ class SettingsService extends ChangeNotifier {
   static const int defaultMaxRecordingSeconds = 30;
   static const bool defaultMultiPersonDetection = true;
   static const bool defaultAiCoaching = false;
-  static const bool defaultMirrorPreview = true;
+  static const bool defaultMirrorPreview = false;
+  static const bool defaultMirrorSkeleton = false;
   static const bool defaultHapticFeedback = true;
   static const String defaultDefaultStyle = 'hip_hop';
   static const bool defaultVideoRecording = true;
@@ -124,6 +126,15 @@ class SettingsService extends ChangeNotifier {
       _prefs?.getBool(_kMirrorPreview) ?? defaultMirrorPreview;
   set mirrorPreview(bool v) {
     _prefs?.setBool(_kMirrorPreview, v);
+    notifyListeners();
+  }
+
+  /// Mirror skeleton overlays horizontally (capture overlay, reference ghost,
+  /// skeleton previews, and playback overlay).
+  bool get mirrorSkeleton =>
+      _prefs?.getBool(_kMirrorSkeleton) ?? defaultMirrorSkeleton;
+  set mirrorSkeleton(bool v) {
+    _prefs?.setBool(_kMirrorSkeleton, v);
     notifyListeners();
   }
 

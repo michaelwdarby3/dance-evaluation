@@ -23,7 +23,8 @@ void main() {
       expect(settings.multiPersonDetection, true);
       expect(settings.aiCoaching, false);
       expect(settings.aiApiKey, '');
-      expect(settings.mirrorPreview, true);
+      expect(settings.mirrorPreview, false);
+      expect(settings.mirrorSkeleton, false);
       expect(settings.hapticFeedback, true);
       expect(settings.defaultStyle, 'hip_hop');
       expect(settings.videoRecording, true);

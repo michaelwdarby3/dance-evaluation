@@ -13,6 +13,7 @@ class ReferenceGhostPainter extends CustomPainter {
     required this.canvasSize,
     this.color = const Color(0xFFBB86FC),
     this.opacity = 0.5,
+    this.mirror = false,
   });
 
   final PoseSequence referenceSequence;
@@ -20,6 +21,7 @@ class ReferenceGhostPainter extends CustomPainter {
   final Size canvasSize;
   final Color color;
   final double opacity;
+  final bool mirror;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -46,24 +48,23 @@ class ReferenceGhostPainter extends CustomPainter {
       final endLm = frame.landmarks[end];
       if (startLm.visibility <= 0.3 || endLm.visibility <= 0.3) continue;
 
-      final startOffset = _toMirroredCanvas(startLm, size);
-      final endOffset = _toMirroredCanvas(endLm, size);
+      final startOffset = _toCanvas(startLm, size);
+      final endOffset = _toCanvas(endLm, size);
       canvas.drawLine(startOffset, endOffset, bonePaint);
     }
 
     // Draw joints with glow.
     for (final lm in frame.landmarks) {
       if (lm.visibility <= 0.3) continue;
-      final offset = _toMirroredCanvas(lm, size);
+      final offset = _toCanvas(lm, size);
       canvas.drawCircle(offset, 10.0, glowPaint);
       canvas.drawCircle(offset, 5.0, jointPaint);
     }
   }
 
-  /// Maps a normalized landmark to canvas coordinates, mirrored horizontally.
-  Offset _toMirroredCanvas(Landmark lm, Size size) {
-    // Mirror: flip x so left/right are swapped (mirror effect).
-    final x = (1.0 - lm.x) * size.width;
+  /// Maps a normalized landmark to canvas coordinates, optionally mirrored.
+  Offset _toCanvas(Landmark lm, Size size) {
+    final x = mirror ? (1.0 - lm.x) * size.width : lm.x * size.width;
     final y = lm.y * size.height;
     return Offset(x, y);
   }
@@ -104,5 +105,5 @@ class ReferenceGhostPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant ReferenceGhostPainter oldDelegate) =>
-      oldDelegate.elapsed != elapsed;
+      oldDelegate.elapsed != elapsed || oldDelegate.mirror != mirror;
 }

@@ -13,9 +13,14 @@ import 'package:dance_evaluation/core/models/pose_frame.dart';
 
 enum _CreateState { form, picking, processing, done, error }
 
-/// Screen for creating a new reference choreography from a video upload.
+/// Screen for creating a new reference choreography from a video upload
+/// or from a live camera recording.
 class CreateReferenceScreen extends StatefulWidget {
-  const CreateReferenceScreen({super.key});
+  const CreateReferenceScreen({super.key, this.fromCapture = false});
+
+  /// When true, the screen reads captured poses from CaptureController
+  /// instead of requiring a video upload.
+  final bool fromCapture;
 
   @override
   State<CreateReferenceScreen> createState() => _CreateReferenceScreenState();
@@ -35,11 +40,87 @@ class _CreateReferenceScreenState extends State<CreateReferenceScreen> {
   final List<PoseFrame> _extractedFrames = [];
   Duration _videoDuration = Duration.zero;
 
+  /// True when poses were loaded from a camera recording.
+  bool _hasCapturedPoses = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.fromCapture) {
+      _loadCapturedPoses();
+    }
+  }
+
+  void _loadCapturedPoses() {
+    try {
+      final capture = ServiceLocator.instance.get<CaptureController>();
+      final sequence = capture.getRecordedSequence();
+      if (sequence.frames.isEmpty) {
+        setState(() {
+          _errorMessage = 'No poses captured. Try recording again.';
+          _state = _CreateState.error;
+        });
+        return;
+      }
+      _extractedFrames.addAll(sequence.frames);
+      _videoDuration = sequence.duration;
+      _frameCount = sequence.frames.length;
+      _hasCapturedPoses = true;
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Could not read captured poses: $e';
+        _state = _CreateState.error;
+      });
+    }
+  }
+
   @override
   void dispose() {
     _nameController.dispose();
     _bpmController.dispose();
     super.dispose();
+  }
+
+  void _saveFromCapture() {
+    try {
+      final name = _nameController.text.trim().isEmpty
+          ? 'Reference ${DateTime.now().millisecondsSinceEpoch}'
+          : _nameController.text.trim();
+      final bpm = double.tryParse(_bpmController.text) ?? 120.0;
+      final id = name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_');
+
+      final ref = ReferenceChoreography(
+        id: id,
+        name: name,
+        style: _style,
+        poses: PoseSequence(
+          frames: _extractedFrames,
+          fps: _videoDuration.inMilliseconds > 0
+              ? _extractedFrames.length /
+                  (_videoDuration.inMilliseconds / 1000)
+              : _extractedFrames.length.toDouble(),
+          duration: _videoDuration,
+          label: id,
+        ),
+        bpm: bpm,
+        description: 'Recorded from camera',
+        difficulty: _difficulty,
+      );
+
+      ServiceLocator.instance.get<ReferenceRepository>().save(ref);
+
+      // Clean up capture controller state.
+      try {
+        ServiceLocator.instance.get<CaptureController>().reset();
+      } catch (_) {}
+
+      setState(() => _state = _CreateState.done);
+    } catch (e) {
+      setState(() {
+        _errorMessage = e.toString();
+        _state = _CreateState.error;
+      });
+    }
   }
 
   Future<void> _pickAndExtract() async {
@@ -148,6 +229,8 @@ class _CreateReferenceScreenState extends State<CreateReferenceScreen> {
   }
 
   Widget _buildForm(ThemeData theme) {
+    final durationSec = _videoDuration.inMilliseconds / 1000;
+
     return ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 400),
       child: Column(
@@ -155,9 +238,12 @@ class _CreateReferenceScreenState extends State<CreateReferenceScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            'Upload a dance video to create a reference that others '
-            'can be evaluated against.',
-            style: TextStyle(color: Colors.white70),
+            _hasCapturedPoses
+                ? 'Captured $_frameCount poses (${durationSec.toStringAsFixed(1)}s). '
+                  'Fill in the details and save.'
+                : 'Record a dance or upload a video to create a reference '
+                  'that others can be evaluated against.',
+            style: const TextStyle(color: Colors.white70),
           ),
           const SizedBox(height: 24),
           TextField(
@@ -204,11 +290,46 @@ class _CreateReferenceScreenState extends State<CreateReferenceScreen> {
             keyboardType: TextInputType.number,
           ),
           const SizedBox(height: 24),
-          ElevatedButton.icon(
-            onPressed: _pickAndExtract,
-            icon: const Icon(Icons.video_library),
-            label: const Text('Select Video & Create'),
-          ),
+          if (_hasCapturedPoses) ...[
+            ElevatedButton.icon(
+              onPressed: _saveFromCapture,
+              icon: const Icon(Icons.save),
+              label: const Text('Save Reference'),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: () {
+                setState(() {
+                  _extractedFrames.clear();
+                  _videoDuration = Duration.zero;
+                  _frameCount = 0;
+                  _hasCapturedPoses = false;
+                });
+              },
+              icon: const Icon(Icons.delete_outline),
+              label: const Text('Discard & Start Over'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.white70,
+                side: const BorderSide(color: Colors.white24),
+              ),
+            ),
+          ] else ...[
+            ElevatedButton.icon(
+              onPressed: () => context.go('/capture?mode=reference'),
+              icon: const Icon(Icons.videocam),
+              label: const Text('Record from Camera'),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: _pickAndExtract,
+              icon: const Icon(Icons.video_library),
+              label: const Text('Select Video File'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.white70,
+                side: const BorderSide(color: Colors.white24),
+              ),
+            ),
+          ],
         ],
       ),
     );

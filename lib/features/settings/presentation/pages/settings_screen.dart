@@ -37,7 +37,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
+      appBar: AppBar(
+        title: const Text('Settings'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.go('/'),
+        ),
+      ),
       body: ListView(
         children: [
           // ------ Capture ------
@@ -79,10 +85,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onChanged: (v) => _settings.videoRecording = v,
           ),
           SwitchListTile(
-            title: const Text('Mirror Preview'),
-            subtitle: const Text('Mirror the front camera preview horizontally'),
+            title: const Text('Mirror Video'),
+            subtitle: const Text('Mirror the camera preview and video horizontally'),
             value: _settings.mirrorPreview,
             onChanged: (v) => _settings.mirrorPreview = v,
+          ),
+          SwitchListTile(
+            title: const Text('Mirror Skeleton'),
+            subtitle: const Text('Mirror skeleton overlays and reference previews'),
+            value: _settings.mirrorSkeleton,
+            onChanged: (v) => _settings.mirrorSkeleton = v,
           ),
           _buildCountdownPicker(),
           _buildRecordingDurationPicker(),

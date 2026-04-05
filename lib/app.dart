@@ -54,13 +54,18 @@ GoRouter _createRouter() => GoRouter(
     ),
     GoRoute(
       path: '/create-reference',
-      builder: (context, state) => const CreateReferenceScreen(),
+      builder: (context, state) {
+        final fromCapture =
+            state.uri.queryParameters['fromCapture'] == 'true';
+        return CreateReferenceScreen(fromCapture: fromCapture);
+      },
     ),
     GoRoute(
       path: '/capture',
       builder: (context, state) {
         final ref = state.uri.queryParameters['ref'];
-        return CaptureScreen(referenceKey: ref);
+        final mode = state.uri.queryParameters['mode'] ?? 'evaluate';
+        return CaptureScreen(referenceKey: ref, mode: mode);
       },
     ),
     GoRoute(

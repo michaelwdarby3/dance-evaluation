@@ -114,14 +114,15 @@ void main() {
       expect(find.text('Dance Style'), findsOneWidget);
       expect(find.text('Difficulty'), findsOneWidget);
       expect(find.text('BPM (optional)'), findsOneWidget);
-      expect(find.text('Select Video & Create'), findsOneWidget);
+      expect(find.text('Record from Camera'), findsOneWidget);
+      expect(find.text('Select Video File'), findsOneWidget);
     });
 
     testWidgets('has instructional text explaining purpose', (tester) async {
       await tester.pumpWidget(buildSubject());
 
       expect(
-        find.textContaining('Upload a dance video to create a reference'),
+        find.textContaining('Record a dance or upload a video'),
         findsOneWidget,
       );
     });
@@ -131,7 +132,7 @@ void main() {
       picker.videoUrlToReturn = null;
 
       await tester.pumpWidget(buildSubject());
-      await tester.tap(find.text('Select Video & Create'));
+      await tester.tap(find.text('Select Video File'));
       await tester.pumpAndSettle();
 
       // Should still show the form.
@@ -147,7 +148,7 @@ void main() {
       ];
 
       await tester.pumpWidget(buildSubject());
-      await tester.tap(find.text('Select Video & Create'));
+      await tester.tap(find.text('Select Video File'));
       await tester.pumpAndSettle();
 
       // After extraction completes, should show done state.
@@ -170,7 +171,7 @@ void main() {
         'My Custom Dance',
       );
 
-      await tester.tap(find.text('Select Video & Create'));
+      await tester.tap(find.text('Select Video File'));
       await tester.pumpAndSettle();
 
       // Verify reference was saved.
@@ -191,7 +192,7 @@ void main() {
       await tester.pumpWidget(buildSubject());
 
       // Don't enter a name — leave it empty.
-      await tester.tap(find.text('Select Video & Create'));
+      await tester.tap(find.text('Select Video File'));
       await tester.pumpAndSettle();
 
       // Should still succeed with auto-generated name.
@@ -206,7 +207,7 @@ void main() {
       extractor.throwOnExtract = true;
 
       await tester.pumpWidget(buildSubject());
-      await tester.tap(find.text('Select Video & Create'));
+      await tester.tap(find.text('Select Video File'));
       await tester.pumpAndSettle();
 
       expect(find.byIcon(Icons.error_outline), findsOneWidget);
@@ -220,7 +221,7 @@ void main() {
       extractor.framesToEmit = []; // No frames emitted.
 
       await tester.pumpWidget(buildSubject());
-      await tester.tap(find.text('Select Video & Create'));
+      await tester.tap(find.text('Select Video File'));
       await tester.pumpAndSettle();
 
       expect(find.textContaining('No poses detected'), findsOneWidget);
@@ -231,7 +232,7 @@ void main() {
       extractor.throwOnExtract = true;
 
       await tester.pumpWidget(buildSubject());
-      await tester.tap(find.text('Select Video & Create'));
+      await tester.tap(find.text('Select Video File'));
       await tester.pumpAndSettle();
 
       await tester.tap(find.text('Try Again'));
@@ -248,7 +249,7 @@ void main() {
       ];
 
       await tester.pumpWidget(buildSubject());
-      await tester.tap(find.text('Select Video & Create'));
+      await tester.tap(find.text('Select Video File'));
       await tester.pumpAndSettle();
 
       expect(find.text('Done'), findsOneWidget);

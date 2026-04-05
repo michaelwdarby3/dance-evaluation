@@ -29,8 +29,7 @@ class WebCameraSource implements CameraSource {
     video.style
       ..width = '100%'
       ..height = '100%'
-      ..objectFit = 'cover'
-      ..transform = 'scaleX(-1)'; // Mirror front camera.
+      ..objectFit = 'cover';
 
     final constraints = web.MediaStreamConstraints(
       video: {

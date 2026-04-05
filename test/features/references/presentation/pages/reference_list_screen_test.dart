@@ -9,8 +9,11 @@ import 'package:dance_evaluation/core/models/pose_frame.dart';
 import 'package:dance_evaluation/core/models/pose_sequence.dart';
 import 'package:dance_evaluation/core/models/reference_choreography.dart';
 import 'package:dance_evaluation/core/services/service_locator.dart';
+import 'package:dance_evaluation/core/services/settings_service.dart';
 import 'package:dance_evaluation/data/reference_repository.dart';
 import 'package:dance_evaluation/features/references/presentation/pages/reference_list_screen.dart';
+import 'package:dance_evaluation/features/references/presentation/widgets/skeleton_preview_widget.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// An asset bundle that throws on all loads (no bundled assets).
 class EmptyAssetBundle extends CachingAssetBundle {
@@ -55,14 +58,19 @@ void main() {
   late ReferenceRepository repo;
   String? navigatedTo;
 
-  setUp(() {
+  setUp(() async {
     // Use EmptyAssetBundle so listAvailable() doesn't hang.
     repo = ReferenceRepository(bundle: EmptyAssetBundle());
     navigatedTo = null;
 
+    SharedPreferences.setMockInitialValues({});
+    final settings = SettingsService();
+    await settings.initialize();
+
     final sl = ServiceLocator.instance;
     sl.reset();
     sl.register<ReferenceRepository>(repo);
+    sl.register<SettingsService>(settings);
   });
 
   tearDown(() {
@@ -126,7 +134,9 @@ void main() {
       repo.save(_makeRef(id: 'ref_2', name: 'Hip Hop Flow'));
 
       await tester.pumpWidget(buildSubject());
-      await tester.pumpAndSettle();
+      // Use pump() — skeleton animation never settles.
+      await tester.pump();
+      await tester.pump();
 
       expect(find.text('K-Pop Routine'), findsOneWidget);
       expect(find.text('Hip Hop Flow'), findsOneWidget);
@@ -141,7 +151,8 @@ void main() {
       ));
 
       await tester.pumpWidget(buildSubject());
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump();
 
       expect(find.text('Test Dance'), findsOneWidget);
       expect(find.textContaining('kPop'), findsOneWidget);
@@ -153,7 +164,8 @@ void main() {
       repo.save(_makeRef(id: 'my_ref', name: 'My Dance'));
 
       await tester.pumpWidget(buildSubject(mode: 'capture'));
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump();
 
       await tester.tap(find.text('My Dance'));
       await tester.pumpAndSettle();
@@ -166,7 +178,8 @@ void main() {
       repo.save(_makeRef(id: 'upload_ref', name: 'Upload Dance'));
 
       await tester.pumpWidget(buildSubject(mode: 'upload'));
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump();
 
       await tester.tap(find.text('Upload Dance'));
       await tester.pumpAndSettle();
@@ -212,10 +225,12 @@ void main() {
       repo.save(_makeRef(id: 'managed_ref', name: 'Managed Dance'));
 
       await tester.pumpWidget(buildSubject(mode: 'manage'));
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump();
 
       await tester.tap(find.text('Managed Dance'));
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump();
 
       // Should stay on the same screen, not navigate.
       expect(navigatedTo, isNull);
@@ -226,7 +241,8 @@ void main() {
       repo.save(_makeRef(id: 'ref_1', name: 'Some Dance'));
 
       await tester.pumpWidget(buildSubject(mode: 'manage'));
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump();
 
       expect(find.byIcon(Icons.chevron_right), findsNothing);
     });

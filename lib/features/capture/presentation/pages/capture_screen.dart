@@ -11,6 +11,7 @@ import 'package:dance_evaluation/data/reference_repository.dart';
 import 'package:dance_evaluation/features/capture/domain/camera_source.dart';
 import 'package:dance_evaluation/features/capture/domain/pose_detector.dart';
 import 'package:dance_evaluation/features/capture/presentation/capture_controller.dart';
+import 'package:dance_evaluation/features/capture/presentation/widgets/capture_settings_panel.dart';
 import 'package:dance_evaluation/features/capture/presentation/widgets/multi_skeleton_painter.dart';
 import 'package:dance_evaluation/features/capture/presentation/widgets/reference_ghost_painter.dart';
 import 'package:dance_evaluation/core/services/settings_service.dart';
@@ -18,9 +19,13 @@ import 'package:dance_evaluation/features/capture/presentation/widgets/skeleton_
 
 /// Full-screen camera capture with real-time skeleton overlay.
 class CaptureScreen extends StatefulWidget {
-  const CaptureScreen({super.key, this.referenceKey});
+  const CaptureScreen({super.key, this.referenceKey, this.mode = 'evaluate'});
 
   final String? referenceKey;
+
+  /// 'evaluate' (default) navigates to evaluation when done.
+  /// 'reference' navigates to create-reference with captured poses.
+  final String mode;
 
   @override
   State<CaptureScreen> createState() => _CaptureScreenState();
@@ -58,6 +63,9 @@ class _CaptureScreenState extends State<CaptureScreen>
       final ref = await repo.load(key);
       if (!mounted) return;
       setState(() => _reference = ref);
+
+      // Tell the controller about reference duration for auto-stop.
+      _captureController?.setReferenceDuration(ref.poses.duration);
 
       // Load settings and prepare audio.
       _settingsService = ServiceLocator.instance.get<SettingsService>();
@@ -186,10 +194,14 @@ class _CaptureScreenState extends State<CaptureScreen>
     if (ctrl.state == CaptureState.done) {
       Future.microtask(() {
         if (mounted) {
-          final refParam = widget.referenceKey != null
-              ? '?ref=${widget.referenceKey}'
-              : '';
-          context.go('/evaluation/latest$refParam');
+          if (widget.mode == 'reference') {
+            context.go('/create-reference?fromCapture=true');
+          } else {
+            final refParam = widget.referenceKey != null
+                ? '?ref=${widget.referenceKey}'
+                : '';
+            context.go('/evaluation/latest$refParam');
+          }
         }
       });
     }
@@ -296,10 +308,13 @@ class _CaptureScreenState extends State<CaptureScreen>
                 elapsed: capture.recordingDuration,
                 canvasSize: MediaQuery.of(context).size,
                 opacity: _settingsService?.ghostOpacity ?? 0.5,
+                mirror: _settingsService?.mirrorSkeleton ?? false,
               ),
             ),
 
           // Skeleton overlay.
+          // Mirror the live overlay when both the video preview is mirrored
+          // AND we have a front camera, so the skeleton tracks the video.
           if ((_settingsService?.skeletonOverlay ?? true)) ...[
             if (capture.currentTrackedPersons.isNotEmpty)
               CustomPaint(
@@ -307,7 +322,8 @@ class _CaptureScreenState extends State<CaptureScreen>
                   trackedPersons: capture.currentTrackedPersons,
                   imageSize: camera.previewSize,
                   rotationDegrees: 0,
-                  isFrontCamera: camera.isFrontCamera,
+                  isFrontCamera: camera.isFrontCamera &&
+                      (_settingsService?.mirrorPreview ?? false),
                 ),
               )
             else if (capture.currentFrame != null)
@@ -316,7 +332,8 @@ class _CaptureScreenState extends State<CaptureScreen>
                   currentFrame: capture.currentFrame,
                   imageSize: camera.previewSize,
                   rotationDegrees: 0,
-                  isFrontCamera: camera.isFrontCamera,
+                  isFrontCamera: camera.isFrontCamera &&
+                      (_settingsService?.mirrorPreview ?? false),
                 ),
               ),
           ],
@@ -347,7 +364,11 @@ class _CaptureScreenState extends State<CaptureScreen>
                     icon: const Icon(Icons.arrow_back, color: Colors.white),
                     onPressed: () {
                       capture.reset();
-                      context.go('/');
+                      if (widget.mode == 'reference') {
+                        context.go('/create-reference');
+                      } else {
+                        context.go('/');
+                      }
                     },
                   ),
                   const Spacer(),
@@ -375,12 +396,38 @@ class _CaptureScreenState extends State<CaptureScreen>
             ),
           ),
 
-          // Bottom controls: record button.
+          // Bottom: settings panel + record button.
           Positioned(
-            bottom: 40,
+            bottom: 0,
             left: 0,
             right: 0,
-            child: Center(child: _buildRecordButton(capture)),
+            child: SafeArea(
+              top: false,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (_settingsService != null &&
+                      capture.state == CaptureState.idle)
+                    CaptureSettingsPanel(
+                      settings: _settingsService!,
+                      onChanged: () {
+                        // Re-sync durations if countdown/recording changed.
+                        _captureController?.updateDurations(
+                          countdownSeconds:
+                              _settingsService?.countdownSeconds,
+                          maxRecordingSeconds:
+                              _settingsService?.maxRecordingSeconds,
+                        );
+                        setState(() {});
+                      },
+                    ),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 24, top: 8),
+                    child: _buildRecordButton(capture),
+                  ),
+                ],
+              ),
+            ),
           ),
         ],
       ),
@@ -389,22 +436,38 @@ class _CaptureScreenState extends State<CaptureScreen>
 
   Widget _buildTimerDisplay(CaptureController capture) {
     final elapsed = capture.recordingDuration;
-    final minutes = elapsed.inMinutes.remainder(60).toString().padLeft(2, '0');
-    final seconds = elapsed.inSeconds.remainder(60).toString().padLeft(2, '0');
+    final elapsedMin = elapsed.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final elapsedSec = elapsed.inSeconds.remainder(60).toString().padLeft(2, '0');
+
+    final refDur = _reference?.poses.duration;
+    final pastRef = refDur != null && elapsed > refDur;
+
+    // Show "elapsed / total" when a reference is loaded.
+    String timerText = '$elapsedMin:$elapsedSec';
+    if (refDur != null) {
+      final totalSec = refDur.inSeconds;
+      final totalMin = (totalSec ~/ 60).toString().padLeft(2, '0');
+      final totalRemSec = (totalSec % 60).toString().padLeft(2, '0');
+      timerText = '$elapsedMin:$elapsedSec / $totalMin:$totalRemSec';
+    }
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.red.withOpacity(0.8),
+        color: pastRef ? Colors.green.withOpacity(0.8) : Colors.red.withOpacity(0.8),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.fiber_manual_record, color: Colors.white, size: 14),
+          Icon(
+            pastRef ? Icons.check_circle : Icons.fiber_manual_record,
+            color: Colors.white,
+            size: 14,
+          ),
           const SizedBox(width: 6),
           Text(
-            '$minutes:$seconds',
+            timerText,
             style: const TextStyle(
               color: Colors.white,
               fontSize: 16,

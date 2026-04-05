@@ -9,6 +9,8 @@ import 'package:video_player/video_player.dart';
 import 'package:dance_evaluation/core/constants/pose_constants.dart';
 import 'package:dance_evaluation/core/models/pose_frame.dart';
 import 'package:dance_evaluation/core/models/pose_sequence.dart';
+import 'package:dance_evaluation/core/services/service_locator.dart';
+import 'package:dance_evaluation/core/services/settings_service.dart';
 
 /// Plays back the user's recorded performance with a skeleton overlay.
 class PlaybackScreen extends StatefulWidget {
@@ -174,6 +176,9 @@ class _PlaybackScreenState extends State<PlaybackScreen> {
                       CustomPaint(
                         painter: _PlaybackSkeletonPainter(
                           frame: _currentFrame!,
+                          mirror: ServiceLocator.instance
+                              .get<SettingsService>()
+                              .mirrorSkeleton,
                         ),
                       ),
                   ],
@@ -339,9 +344,10 @@ class _PlaybackScreenState extends State<PlaybackScreen> {
 
 /// Paints the skeleton overlay on the playback video.
 class _PlaybackSkeletonPainter extends CustomPainter {
-  _PlaybackSkeletonPainter({required this.frame});
+  _PlaybackSkeletonPainter({required this.frame, this.mirror = false});
 
   final PoseFrame frame;
+  final bool mirror;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -366,8 +372,8 @@ class _PlaybackSkeletonPainter extends CustomPainter {
       if (startLm.visibility <= 0.3 || endLm.visibility <= 0.3) continue;
 
       canvas.drawLine(
-        Offset(startLm.x * size.width, startLm.y * size.height),
-        Offset(endLm.x * size.width, endLm.y * size.height),
+        _toCanvas(startLm, size),
+        _toCanvas(endLm, size),
         bonePaint,
       );
     }
@@ -375,15 +381,16 @@ class _PlaybackSkeletonPainter extends CustomPainter {
     // Draw joints.
     for (final lm in frame.landmarks) {
       if (lm.visibility <= 0.3) continue;
-      canvas.drawCircle(
-        Offset(lm.x * size.width, lm.y * size.height),
-        3.5,
-        jointPaint,
-      );
+      canvas.drawCircle(_toCanvas(lm, size), 3.5, jointPaint);
     }
+  }
+
+  Offset _toCanvas(Landmark lm, Size size) {
+    final x = mirror ? (1.0 - lm.x) * size.width : lm.x * size.width;
+    return Offset(x, lm.y * size.height);
   }
 
   @override
   bool shouldRepaint(covariant _PlaybackSkeletonPainter oldDelegate) =>
-      oldDelegate.frame != frame;
+      oldDelegate.frame != frame || oldDelegate.mirror != mirror;
 }

@@ -25,6 +25,16 @@ class CaptureController extends ChangeNotifier {
   int _initialCountdown;
   int _maxSeconds;
 
+  /// When set, the recording auto-stops this long after the reference ends.
+  static const _autoStopBuffer = Duration(milliseconds: 1500);
+
+  /// Reference choreography duration. When set, recording auto-stops at
+  /// [_referenceDuration] + [_autoStopBuffer].
+  Duration? _referenceDuration;
+
+  /// Set the reference choreography duration for auto-stop behavior.
+  void setReferenceDuration(Duration? d) => _referenceDuration = d;
+
   /// Update configurable durations (e.g. from settings changes).
   void updateDurations({int? countdownSeconds, int? maxRecordingSeconds}) {
     if (countdownSeconds != null) _initialCountdown = countdownSeconds;
@@ -111,7 +121,13 @@ class CaptureController extends ChangeNotifier {
       _recordingDuration = _recordingElapsed;
       notifyListeners();
 
-      if (_recordingDuration >= maxDuration) {
+      // Auto-stop: reference duration + buffer takes priority, then max.
+      final refLimit = _referenceDuration != null
+          ? _referenceDuration! + _autoStopBuffer
+          : null;
+      if (refLimit != null && _recordingDuration >= refLimit) {
+        stopRecording();
+      } else if (_recordingDuration >= maxDuration) {
         stopRecording();
       }
     });
@@ -301,6 +317,7 @@ class CaptureController extends ChangeNotifier {
     _recordingDuration = Duration.zero;
     _recordingElapsed = Duration.zero;
     _countdownSeconds = _initialCountdown;
+    _referenceDuration = null;
     _state = CaptureState.idle;
     notifyListeners();
   }
