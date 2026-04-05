@@ -7,7 +7,10 @@ lib/                 Flutter client (Dart)
   core/              Shared models, constants, utils, services, storage
   data/              Repositories (references, evaluation history)
   features/          Feature modules (capture, evaluation, history, home, playback, references, upload)
-server/              Python FastAPI backend (Cloud Run) — stubs for Milestone 2
+server/              Python FastAPI backend (Cloud Run) — POST /v1/evaluations is live
+  api/core/          Scoring engine: DTW, pose math, feedback, drills, constants (ported from Dart)
+  api/references/    Reference JSON loader
+  references/        Copy of assets/references/ (via `make copy-references`)
 infra/               Terraform IaC for GCP (Cloud Run)
 tools/               Python utilities for reference extraction & video generation
 scripts/             Shell scripts (Android emulator management, setup, dev)
@@ -154,12 +157,15 @@ Without a key, the app falls back to locally-generated feedback.
 
 ## Server (Milestone 2 — Not Yet Implemented)
 
-FastAPI backend in `server/`. Currently only `GET /health` works; all evaluation endpoints return 501.
+FastAPI backend in `server/`. `POST /v1/evaluations` runs real DTW scoring (ported from Dart client). GET/LIST/DELETE endpoints still return 501 (need Firestore).
+
+The scoring engine lives in `server/api/core/` — exact port of the client-side DTW + dimension scoring for score parity. Reference JSONs are loaded from `server/references/` (synced via `make copy-references`).
 
 ```bash
 make setup-server
 make run-server       # localhost:8000
 make test-server
+make copy-references  # Sync assets/references/ → server/references/
 make build-server     # Docker image
 ```
 
@@ -225,3 +231,7 @@ Web integration tests require `CHROME_EXECUTABLE` set to `~/bin/google-chrome-no
 - Audio playback during capture
 - Multi-person evaluation support
 - Android and web platforms fully functional
+
+**Milestone 2 in progress.** Server-side scoring engine is live:
+- `POST /v1/evaluations` — full DTW scoring with 4-dimension scores, joint feedback, timing/joint insights, coaching summary, and drill recommendations
+- Deferred: GET/LIST/DELETE (Firestore), AI coaching, video upload, multi-person
