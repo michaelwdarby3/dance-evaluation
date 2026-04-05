@@ -234,4 +234,8 @@ Web integration tests require `CHROME_EXECUTABLE` set to `~/bin/google-chrome-no
 
 **Milestone 2 in progress.** Server-side scoring engine is live:
 - `POST /v1/evaluations` — full DTW scoring with 4-dimension scores, joint feedback, timing/joint insights, coaching summary, and drill recommendations
-- Deferred: GET/LIST/DELETE (Firestore), AI coaching, video upload, multi-person
+- `GET /v1/evaluations/{id}` — retrieve a stored evaluation by ID
+- `GET /v1/evaluations?limit=&offset=` — list evaluations (newest first)
+- `DELETE /v1/evaluations/{id}` — delete a stored evaluation
+- Local SQLite storage in `server/data/evaluations.db` (auto-created, gitignored). Set `EVAL_DB_PATH` env var to override.
+- Deferred: AI coaching, video upload, multi-person. Swap `api/storage/sqlite.py` for Firestore when moving to cloud.

@@ -1,4 +1,4 @@
-"""Evaluation endpoints — POST /evaluations is live; others still stubbed."""
+"""Evaluation endpoints — full CRUD backed by local SQLite storage."""
 
 from datetime import datetime
 
@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 from api.core.scoring import evaluate
 from api.references.repository import load_reference
+from api.storage import sqlite as store
 
 router = APIRouter(tags=["evaluation"])
 
@@ -97,7 +98,7 @@ async def create_evaluation(req: EvaluationRequest):
 
     result = evaluate(user_frames, ref_frames, style=req.style)
 
-    return EvaluationResponse(
+    response = EvaluationResponse(
         id=result.id,
         overall_score=result.overall_score,
         dimensions=[
@@ -136,22 +137,65 @@ async def create_evaluation(req: EvaluationRequest):
         ],
     )
 
+    store.save(_response_to_row(response))
+    return response
 
-@router.get("/evaluations/{evaluation_id}", response_model=EvaluationResponse, status_code=501)
+
+@router.get("/evaluations/{evaluation_id}", response_model=EvaluationResponse)
 async def get_evaluation(evaluation_id: str):
-    raise HTTPException(501, "Not implemented")
+    row = store.get(evaluation_id)
+    if not row:
+        raise HTTPException(404, f"Evaluation '{evaluation_id}' not found")
+    return _row_to_response(row)
 
 
-@router.get("/evaluations", status_code=501)
+@router.get("/evaluations", response_model=list[EvaluationResponse])
 async def list_evaluations(limit: int = 20, offset: int = 0):
-    raise HTTPException(501, "Not implemented")
+    rows = store.list_evaluations(limit=limit, offset=offset)
+    return [_row_to_response(r) for r in rows]
 
 
-@router.delete("/evaluations/{evaluation_id}", status_code=501)
+@router.delete("/evaluations/{evaluation_id}", status_code=204)
 async def delete_evaluation(evaluation_id: str):
-    raise HTTPException(501, "Not implemented")
+    if not store.delete(evaluation_id):
+        raise HTTPException(404, f"Evaluation '{evaluation_id}' not found")
 
 
 @router.post("/evaluations/video", status_code=501)
 async def create_video_evaluation():
     raise HTTPException(501, "Not implemented — Path 2 coming in Milestone 3")
+
+
+# ---------------------------------------------------------------------------
+# Storage mapping helpers
+# ---------------------------------------------------------------------------
+
+
+def _response_to_row(resp: EvaluationResponse) -> dict:
+    return {
+        "id": resp.id,
+        "overall_score": resp.overall_score,
+        "dimensions": [d.model_dump() for d in resp.dimensions],
+        "joint_feedback": [j.model_dump() for j in resp.joint_feedback],
+        "created_at": resp.created_at.isoformat(),
+        "style": resp.style,
+        "timing_insights": resp.timing_insights,
+        "joint_insights": resp.joint_insights,
+        "coaching_summary": resp.coaching_summary,
+        "drills": [d.model_dump() for d in resp.drills],
+    }
+
+
+def _row_to_response(row: dict) -> EvaluationResponse:
+    return EvaluationResponse(
+        id=row["id"],
+        overall_score=row["overall_score"],
+        dimensions=[DimensionScoreOut(**d) for d in row["dimensions"]],
+        joint_feedback=[JointFeedbackOut(**j) for j in row["joint_feedback"]],
+        created_at=datetime.fromisoformat(row["created_at"]),
+        style=row["style"],
+        timing_insights=row["timing_insights"],
+        joint_insights=row["joint_insights"],
+        coaching_summary=row["coaching_summary"],
+        drills=[DrillRecommendationOut(**d) for d in row["drills"]],
+    )

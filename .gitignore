@@ -8,6 +8,9 @@ venv/
 # Local dev tools
 tools/.venv/
 tools/.cache/
+test_results/
+server/references/
+server/data/
 
 # Downloaded stock footage (re-downloadable via generate_references.py)
 assets/test_videos/multi_person/

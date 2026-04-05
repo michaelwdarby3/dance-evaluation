@@ -1,7 +1,6 @@
-"""Tests for evaluation endpoints."""
+"""Tests for evaluation endpoints — full CRUD."""
 
 import pytest
-import numpy as np
 
 
 def _make_frame(offset: float = 0.0):
@@ -26,7 +25,7 @@ def _make_payload(reference_id="hip_hop_basic", n_frames=10, offset=0.0):
 
 
 # ---------------------------------------------------------------------------
-# POST /v1/evaluations — now returns real scores
+# POST /v1/evaluations
 # ---------------------------------------------------------------------------
 
 
@@ -65,10 +64,9 @@ async def test_post_evaluations_empty_frames_422(client):
 
 
 @pytest.mark.asyncio
-async def test_post_evaluations_response_has_optional_fields(client):
+async def test_post_evaluations_response_has_feedback_fields(client):
     response = await client.post("/v1/evaluations", json=_make_payload())
     data = response.json()
-    # Feedback fields should be populated
     assert isinstance(data["timing_insights"], list)
     assert len(data["timing_insights"]) > 0
     assert isinstance(data["joint_insights"], list)
@@ -98,26 +96,98 @@ async def test_post_evaluations_joint_feedback_structure(client):
 
 
 # ---------------------------------------------------------------------------
-# Other endpoints — still 501
+# GET /v1/evaluations/{id}
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_get_evaluation_by_id_returns_501(client):
-    response = await client.get("/v1/evaluations/test-id")
-    assert response.status_code == 501
+async def test_get_evaluation_by_id(client):
+    post_resp = await client.post("/v1/evaluations", json=_make_payload())
+    eval_id = post_resp.json()["id"]
+
+    get_resp = await client.get(f"/v1/evaluations/{eval_id}")
+    assert get_resp.status_code == 200
+    data = get_resp.json()
+    assert data["id"] == eval_id
+    assert data["overall_score"] == post_resp.json()["overall_score"]
+    assert len(data["dimensions"]) == 4
 
 
 @pytest.mark.asyncio
-async def test_list_evaluations_returns_501(client):
+async def test_get_evaluation_not_found_404(client):
+    response = await client.get("/v1/evaluations/nonexistent-id")
+    assert response.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# GET /v1/evaluations (list)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_list_evaluations_empty(client):
     response = await client.get("/v1/evaluations")
-    assert response.status_code == 501
+    assert response.status_code == 200
+    assert response.json() == []
 
 
 @pytest.mark.asyncio
-async def test_delete_evaluation_returns_501(client):
-    response = await client.delete("/v1/evaluations/test-id")
-    assert response.status_code == 501
+async def test_list_evaluations_returns_created(client):
+    await client.post("/v1/evaluations", json=_make_payload())
+    await client.post("/v1/evaluations", json=_make_payload(offset=0.01))
+
+    response = await client.get("/v1/evaluations")
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 2
+
+
+@pytest.mark.asyncio
+async def test_list_evaluations_limit(client):
+    for i in range(5):
+        await client.post("/v1/evaluations", json=_make_payload(offset=i * 0.01))
+
+    response = await client.get("/v1/evaluations?limit=3")
+    assert response.status_code == 200
+    assert len(response.json()) == 3
+
+
+@pytest.mark.asyncio
+async def test_list_evaluations_offset(client):
+    for i in range(5):
+        await client.post("/v1/evaluations", json=_make_payload(offset=i * 0.01))
+
+    response = await client.get("/v1/evaluations?limit=10&offset=3")
+    assert response.status_code == 200
+    assert len(response.json()) == 2
+
+
+# ---------------------------------------------------------------------------
+# DELETE /v1/evaluations/{id}
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_delete_evaluation(client):
+    post_resp = await client.post("/v1/evaluations", json=_make_payload())
+    eval_id = post_resp.json()["id"]
+
+    del_resp = await client.delete(f"/v1/evaluations/{eval_id}")
+    assert del_resp.status_code == 204
+
+    get_resp = await client.get(f"/v1/evaluations/{eval_id}")
+    assert get_resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_delete_evaluation_not_found_404(client):
+    response = await client.delete("/v1/evaluations/nonexistent-id")
+    assert response.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Video endpoint — still stubbed
+# ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
